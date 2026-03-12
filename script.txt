@@ -105,3 +105,36 @@ function loadWatchlist(){
     })
 
 }
+
+
+
+function loadWatchlist(){
+
+    const token = localStorage.getItem("token")
+
+    fetch("http://localhost:8080/api/watchlist",{
+        headers:{
+            "Authorization":"Bearer " + token
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        const list = document.getElementById("watchlist")
+        list.innerHTML = ""
+
+        data.data.forEach(stock => {
+
+            const li = document.createElement("li")
+
+            li.innerHTML =
+                stock.symbol + " - " +
+                stock.stock_name + " - " +
+                stock.last_price
+
+            list.appendChild(li)
+
+        })
+
+    })
+}
