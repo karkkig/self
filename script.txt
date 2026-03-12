@@ -1,140 +1,52 @@
-const API = "http://localhost:8080"
-
-function login() {
-
-    const email = document.getElementById("email").value
-    const password = document.getElementById("password").value
-
-    fetch(API + "/login", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({email, password})
-    })
-    .then(res => res.json())
-    .then(data => {
-
-        if(data.status === "success"){
-            localStorage.setItem("token", data.data.token)
-            window.location = "watchlist.html"
-        } else {
-            document.getElementById("msg").innerText = data.message
-        }
-
-    })
-}
-function register(){
-
-    const name = document.getElementById("name").value
-    const email = document.getElementById("email").value
-    const phone = document.getElementById("phone").value
-    const password = document.getElementById("password").value
-
-    fetch(API + "/register",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({name,email,phone,password})
-    })
-    .then(res=>res.json())
-    .then(data=>{
-        alert(data.message)
-    })
-}
-function searchStock(){
-
-    const symbol = document.getElementById("symbol").value
-    const token = localStorage.getItem("token")
-
-    fetch(API + "/api/stocks/" + symbol,{
-        headers:{
-            "Authorization":"Bearer " + token
-        }
-    })
-    .then(res=>res.json())
-    .then(data=>{
-
-        const stock = data.data
-
-        document.getElementById("stock").innerHTML =
-        `
-        ${stock.symbol} - ${stock.stock_name}
-        Price: ${stock.last_price}
-        <button onclick="addWatch('${stock.symbol}')">Add</button>
-        `
-    })
-
-}
-function addWatch(symbol){
-
-    const token = localStorage.getItem("token")
-
-    fetch(API + "/api/watchlist?symbol=" + symbol,{
-        method:"POST",
-        headers:{
-            "Authorization":"Bearer " + token
-        }
-    })
-    .then(res=>res.json())
-    .then(data=>{
-        alert(data.message)
-    })
-
-}
 function loadWatchlist(){
 
-    const token = localStorage.getItem("token")
+const token = localStorage.getItem("token")
 
-    fetch(API + "/api/watchlist",{
-        headers:{
-            "Authorization":"Bearer " + token
-        }
-    })
-    .then(res=>res.json())
-    .then(data=>{
+fetch("http://localhost:8080/api/watchlist",{
+headers:{
+"Authorization":"Bearer " + token
+}
+})
+.then(res => res.json())
+.then(data => {
 
-        const list = document.getElementById("watchlist")
-        list.innerHTML = ""
+const list = document.getElementById("watchlist")
+list.innerHTML = ""
 
-        data.data.forEach(stock => {
+data.data.forEach(stock => {
 
-            const li = document.createElement("li")
-            li.innerText = stock.symbol + " - " + stock.last_price
-            list.appendChild(li)
+const li = document.createElement("li")
 
-        })
+li.innerHTML =
+stock.symbol + " - " +
+stock.stock_name + " - " +
+stock.last_price +
+` <button onclick="removeWatch('${stock.symbol}')">Remove</button>`
 
-    })
+list.appendChild(li)
+
+})
+
+})
+}
+
+
+function removeWatch(symbol){
+
+const token = localStorage.getItem("token")
+
+fetch("http://localhost:8080/api/watchlist/" + symbol,{
+method:"DELETE",
+headers:{
+"Authorization":"Bearer " + token
+}
+})
+.then(res=>res.json())
+.then(data=>{
+alert(data.message)
+loadWatchlist()
+})
 
 }
 
 
-
-function loadWatchlist(){
-
-    const token = localStorage.getItem("token")
-
-    fetch("http://localhost:8080/api/watchlist",{
-        headers:{
-            "Authorization":"Bearer " + token
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
-
-        const list = document.getElementById("watchlist")
-        list.innerHTML = ""
-
-        data.data.forEach(stock => {
-
-            const li = document.createElement("li")
-
-            li.innerHTML =
-                stock.symbol + " - " +
-                stock.stock_name + " - " +
-                stock.last_price
-
-            list.appendChild(li)
-
-        })
-
-    })
-}
