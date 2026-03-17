@@ -1,33 +1,58 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Transaction History</title>
-</head>
-<body>
+function loadTransactions(){
 
-<h2>Transaction History</h2>
+    const token = localStorage.getItem("token")
 
-<table border="2">
-    <thead>
-        <tr>
-            <th>Type</th>
-            <th>Symbol</th>
-            <th>Quantity</th>
-            <th>Price</th>
-            <th>Total</th>
-            <th>Date</th>
-        </tr>
-    </thead>
-    <tbody id="transactions"></tbody>
-</table>
+    if(!token){
+        alert("Please login again")
+        window.location = "login.html"
+        return
+    }
 
-<br>
-<button onclick="logout()">Logout</button>
+    fetch(API + "/api/transactions",{
+        headers:{
+            "Authorization":"Bearer " + token
+        }
+    })
+    .then(res => {
+        if(!res.ok){
+            throw new Error("Failed to fetch")
+        }
+        return res.json()
+    })
+    .then(data => {   // ✅ FIX HERE
 
-<script src="script.js"></script>
-<script>
-    loadTransactions()
-</script>
+        const table = document.getElementById("transactions")
+        table.innerHTML = ""
 
-</body>
-</html>
+        if(!data || data.length === 0){
+            table.innerHTML = "<tr><td colspan='6'>No transactions</td></tr>"
+            return
+        }
+
+        const transactions = [...data].sort((a,b)=>
+            new Date(b.created_at) - new Date(a.created_at)
+        )
+
+        transactions.forEach(tx => {
+
+            const tr = document.createElement("tr")
+
+            tr.innerHTML = `
+                <td style="color:${tx.type === 'BUY' ? 'green' : 'red'}">
+                    ${tx.type || "N/A"}
+                </td>
+                <td>${tx.symbol || tx.stock_id || "N/A"}</td>
+                <td>${tx.quantity || 0}</td>
+                <td>₹ ${tx.price || 0}</td>
+                <td>₹ ${tx.total_amount || 0}</td>
+                <td>${tx.created_at ? formatDate(tx.created_at) : "N/A"}</td>
+            `
+
+            table.appendChild(tr)
+        })
+    })
+    .catch(err => {
+        console.error(err)
+        alert("Error loading transactions")
+    })
+}
