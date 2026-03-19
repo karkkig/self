@@ -1,58 +1,66 @@
-function loadTransactions(){
+function loadPortfolio() {
 
     const token = localStorage.getItem("token")
 
-    if(!token){
+    if (!token) {
         alert("Please login again")
         window.location = "login.html"
         return
     }
 
-    fetch(API + "/api/transactions",{
-        headers:{
-            "Authorization":"Bearer " + token
+    fetch(API + "/api/portfolio", {
+        headers: {
+            "Authorization": "Bearer " + token
         }
     })
     .then(res => {
-        if(!res.ok){
-            throw new Error("Failed to fetch")
-        }
+        if (!res.ok) throw new Error("Failed to fetch")
         return res.json()
     })
-    .then(data => {   // ✅ FIX HERE
+    .then(data => {
 
-        const table = document.getElementById("transactions")
+        // ✅ Summary (FIXED)
+        document.getElementById("totalInvestment").innerText = (data.total_investment || 0).toFixed(2)
+        document.getElementById("currentValue").innerText = (data.tot_current_value || 0).toFixed(2)
+        document.getElementById("totalPL").innerText = (data.total_profit_loss || 0).toFixed(2)
+
+        const table = document.getElementById("portfolio")
         table.innerHTML = ""
 
-        if(!data || data.length === 0){
-            table.innerHTML = "<tr><td colspan='6'>No transactions</td></tr>"
+        if (!data.stocks || data.stocks.length === 0) {
+            table.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center;">No stocks in portfolio</td>
+            </tr>`
             return
         }
 
-        const transactions = [...data].sort((a,b)=>
-            new Date(b.created_at) - new Date(a.created_at)
+        const stocks = [...data.stocks].sort((a, b) => 
+            (b.profit_loss || 0) - (a.profit_loss || 0)
         )
 
-        transactions.forEach(tx => {
+        stocks.forEach(stock => {
 
             const tr = document.createElement("tr")
 
             tr.innerHTML = `
-                <td style="color:${tx.type === 'BUY' ? 'green' : 'red'}">
-                    ${tx.type || "N/A"}
+                <td>${stock.symbol || "N/A"}</td>
+                <td>${stock.quantity || 0}</td>
+                <td>${(stock.avg_buy_price || 0).toFixed(2)}</td>
+                <td>${(stock.total_investment || 0).toFixed(2)}</td>
+                <td>${(stock.current_price || 0).toFixed(2)}</td>
+                <td>${(stock.current_value || 0).toFixed(2)}</td>
+                <td style="color:${stock.profit_loss >= 0 ? 'green' : 'red'}">
+                    ${(stock.profit_loss || 0).toFixed(2)}
                 </td>
-                <td>${tx.symbol || tx.stock_id || "N/A"}</td>
-                <td>${tx.quantity || 0}</td>
-                <td>₹ ${tx.price || 0}</td>
-                <td>₹ ${tx.total_amount || 0}</td>
-                <td>${tx.created_at ? formatDate(tx.created_at) : "N/A"}</td>
             `
 
             table.appendChild(tr)
         })
+
     })
     .catch(err => {
         console.error(err)
-        alert("Error loading transactions")
+        alert("Error loading portfolio")
     })
 }
