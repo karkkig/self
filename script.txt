@@ -1,10 +1,10 @@
-function loadPortfolio() {
+// ================= PROFILE =================
 
-    console.log("Function called");
+function loadProfile() {
 
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token")
 
-    fetch(API + "/api/portfolio", {
+    fetch(API + "/profile", {
         headers: {
             "Authorization": "Bearer " + token
         }
@@ -12,30 +12,49 @@ function loadPortfolio() {
     .then(res => res.json())
     .then(data => {
 
-        console.log("DATA:", data);
+        // adjust based on your backend response
+        document.getElementById("profileEmail").value = data.email || ""
+        document.getElementById("profilePhone").value = data.phone || ""
+        document.getElementById("profileAddress").value = data.address || ""
 
-        document.getElementById("totalInvestment").innerText = data.total_investment || 0;
-        document.getElementById("currentValue").innerText = data.tot_current_value || 0;
-        document.getElementById("totalPL").innerText = data.total_profit_loss || 0;
-
-        const table = document.getElementById("stockTable"); // ✅ FIXED
-        table.innerHTML = "";
-
-        data.stocks.forEach(stock => {
-            const tr = document.createElement("tr");
-
-            tr.innerHTML = `
-                <td>${stock.symbol}</td>
-                <td>${stock.quantity}</td>
-                <td>${stock.avg_buy_price}</td>
-                <td>${stock.current_price}</td>
-                <td>${stock.profit_loss}</td>
-            `;
-
-            table.appendChild(tr);
-        });
-
-    });
+    })
+    .catch(err => {
+        console.error(err)
+        document.getElementById("profileMsg").innerText = "Failed to load profile"
+    })
 }
 
-window.onload = loadPortfolio;
+function updateProfile() {
+
+    const token = localStorage.getItem("token")
+
+    const email = document.getElementById("profileEmail").value
+    const phone = document.getElementById("profilePhone").value
+    const address = document.getElementById("profileAddress").value
+
+    if (!email || !phone || !address) {
+        document.getElementById("profileMsg").innerText = "All fields required"
+        return
+    }
+
+    fetch(API + "/profile", {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+            email: email,
+            phone: phone,
+            address: address
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("profileMsg").innerText = data.message || data.error
+    })
+    .catch(err => {
+        console.error(err)
+        document.getElementById("profileMsg").innerText = "Update failed"
+    })
+}
