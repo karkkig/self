@@ -1,56 +1,58 @@
-func (h *ReportHandler) ExportReportCSV(c echo.Context) error {
+package service
 
-	userID := getUserID(c)
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+	"karkki-hub/Stock-Portfolio-Manager/internal/repo"
+)
 
-	report, err := h.Service.GetUserReport(int(userID))
+type PriceService struct {
+	StockRepo repo.StockRepository
+}
+
+func NewPriceService(stockRepo repo.StockRepository) *PriceService {
+	return &PriceService{StockRepo: stockRepo}
+}
+
+type apiResponse struct {
+	GlobalQuote struct {
+		Price string `json:"05. price"`
+	} `json:"Global Quote"`
+}
+
+func (s *PriceService) UpdatePrices() {
+
+	stocks, err := s.StockRepo.GetAllStocks()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
-		})
+		fmt.Println("Error:", err)
+		return
 	}
 
-	// Set headers for download
-	c.Response().Header().Set("Content-Type", "text/csv")
-	c.Response().Header().Set("Content-Disposition", "attachment; filename=report.csv")
+	for _, stock := range stocks {
 
-	writer := csv.NewWriter(c.Response())
-	defer writer.Flush()
+		url := fmt.Sprintf(
+			"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=YOUR_API_KEY",
+			stock.Symbol,
+		)
 
-	// ✅ Header row
-	writer.Write([]string{
-		"Symbol",
-		"Quantity",
-		"Avg Buy Price",
-		"Current Price",
-		"Total Investment",
-		"Current Value",
-		"Profit/Loss",
-	})
-
-	// ✅ Data rows
-	for _, s := range report.StocksOwned {
-		row := []string{
-			s.Symbol,
-			fmt.Sprintf("%.2f", s.Qty),
-			fmt.Sprintf("%.2f", s.AvgBuyPrice),
-			fmt.Sprintf("%.2f", s.CurrentPrice),
-			fmt.Sprintf("%.2f", s.TotalInvestment),
-			fmt.Sprintf("%.2f", s.CurrentValue),
-			fmt.Sprintf("%.2f", s.ProfitLoss),
+		resp, err := http.Get(url)
+		if err != nil {
+			continue
 		}
-		writer.Write(row)
+
+		var data apiResponse
+		json.NewDecoder(resp.Body).Decode(&data)
+		resp.Body.Close()
+
+		var price float64
+		fmt.Sscanf(data.GlobalQuote.Price, "%f", &price)
+
+		_ = s.StockRepo.UpdateStockPrice(stock.ID, price)
+
+		time.Sleep(12 * time.Second) // rate limit safety
 	}
 
-	// ✅ Total row (very important)
-	writer.Write([]string{
-		"TOTAL",
-		"",
-		"",
-		"",
-		fmt.Sprintf("%.2f", report.TotalInvestment),
-		fmt.Sprintf("%.2f", report.TotCurrentValue),
-		fmt.Sprintf("%.2f", report.TotalProfitLoss),
-	})
-
-	return nil
+	fmt.Println("✅ Prices Updated")
 }
