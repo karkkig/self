@@ -1,60 +1,47 @@
-// ================= PROFILE =================
+func (h *TransactionHandler) ExportPortfolioCSV(c echo.Context) error {
 
-function loadProfile() {
+	userID := getUserID(c)
 
-    const token = localStorage.getItem("token")
+	// Get portfolio data
+	data, err := h.Service.GetPortfolio(userID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": err.Error(),
+		})
+	}
 
-    fetch(API + "/profile", {
-        headers: {
-            "Authorization": "Bearer " + token
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
+	// Set headers for file download
+	c.Response().Header().Set("Content-Type", "text/csv")
+	c.Response().Header().Set("Content-Disposition", "attachment;filename=portfolio.csv")
 
-        // adjust based on your backend response
-        document.getElementById("profileEmail").value = data.email || ""
-        document.getElementById("profilePhone").value = data.phone || ""
-        document.getElementById("profileAddress").value = data.address || ""
+	writer := csv.NewWriter(c.Response())
+	defer writer.Flush()
 
-    })
-    .catch(err => {
-        console.error(err)
-        document.getElementById("profileMsg").innerText = "Failed to load profile"
-    })
-}
+	// Write header
+	header := []string{
+		"Symbol",
+		"Quantity",
+		"Avg Buy Price",
+		"Current Price",
+		"Total Investment",
+		"Current Value",
+		"Profit/Loss",
+	}
+	writer.Write(header)
 
-function updateProfile() {
+	// Write data rows
+	for _, r := range data {
+		record := []string{
+			r.Symbol,
+			fmt.Sprintf("%.2f", r.Quantity),
+			fmt.Sprintf("%.2f", r.AvgBuyPrice),
+			fmt.Sprintf("%.2f", r.CurrentPrice),
+			fmt.Sprintf("%.2f", r.TotalInvestment),
+			fmt.Sprintf("%.2f", r.CurrentValue),
+			fmt.Sprintf("%.2f", r.ProfitLoss),
+		}
+		writer.Write(record)
+	}
 
-    const token = localStorage.getItem("token")
-
-    const email = document.getElementById("profileEmail").value
-    const phone = document.getElementById("profilePhone").value
-    const address = document.getElementById("profileAddress").value
-
-    if (!email || !phone || !address) {
-        document.getElementById("profileMsg").innerText = "All fields required"
-        return
-    }
-
-    fetch(API + "/profile", {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-        },
-        body: JSON.stringify({
-            email: email,
-            phone: phone,
-            address: address
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById("profileMsg").innerText = data.message || data.error
-    })
-    .catch(err => {
-        console.error(err)
-        document.getElementById("profileMsg").innerText = "Update failed"
-    })
+	return nil
 }
