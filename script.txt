@@ -1,24 +1,23 @@
-func (h *TransactionHandler) ExportPortfolioCSV(c echo.Context) error {
+func (h *ReportHandler) ExportReportCSV(c echo.Context) error {
 
 	userID := getUserID(c)
 
-	// Get portfolio data
-	data, err := h.Service.GetPortfolio(userID)
+	report, err := h.Service.GetUserReport(int(userID))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 	}
 
-	// Set headers for file download
+	// Set headers for download
 	c.Response().Header().Set("Content-Type", "text/csv")
-	c.Response().Header().Set("Content-Disposition", "attachment;filename=portfolio.csv")
+	c.Response().Header().Set("Content-Disposition", "attachment; filename=report.csv")
 
 	writer := csv.NewWriter(c.Response())
 	defer writer.Flush()
 
-	// Write header
-	header := []string{
+	// ✅ Header row
+	writer.Write([]string{
 		"Symbol",
 		"Quantity",
 		"Avg Buy Price",
@@ -26,22 +25,32 @@ func (h *TransactionHandler) ExportPortfolioCSV(c echo.Context) error {
 		"Total Investment",
 		"Current Value",
 		"Profit/Loss",
-	}
-	writer.Write(header)
+	})
 
-	// Write data rows
-	for _, r := range data {
-		record := []string{
-			r.Symbol,
-			fmt.Sprintf("%.2f", r.Quantity),
-			fmt.Sprintf("%.2f", r.AvgBuyPrice),
-			fmt.Sprintf("%.2f", r.CurrentPrice),
-			fmt.Sprintf("%.2f", r.TotalInvestment),
-			fmt.Sprintf("%.2f", r.CurrentValue),
-			fmt.Sprintf("%.2f", r.ProfitLoss),
+	// ✅ Data rows
+	for _, s := range report.StocksOwned {
+		row := []string{
+			s.Symbol,
+			fmt.Sprintf("%.2f", s.Qty),
+			fmt.Sprintf("%.2f", s.AvgBuyPrice),
+			fmt.Sprintf("%.2f", s.CurrentPrice),
+			fmt.Sprintf("%.2f", s.TotalInvestment),
+			fmt.Sprintf("%.2f", s.CurrentValue),
+			fmt.Sprintf("%.2f", s.ProfitLoss),
 		}
-		writer.Write(record)
+		writer.Write(row)
 	}
+
+	// ✅ Total row (very important)
+	writer.Write([]string{
+		"TOTAL",
+		"",
+		"",
+		"",
+		fmt.Sprintf("%.2f", report.TotalInvestment),
+		fmt.Sprintf("%.2f", report.TotCurrentValue),
+		fmt.Sprintf("%.2f", report.TotalProfitLoss),
+	})
 
 	return nil
 }
