@@ -1,0 +1,23 @@
+func (s *StockService) AddStockHistory(stockID uint, timeSeries map[string]map[string]string) error {
+
+	for dateStr, values := range timeSeries {
+
+		date, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			continue
+		}
+
+		price, err := strconv.ParseFloat(values["4. close"], 64)
+		if err != nil {
+			continue
+		}
+
+		err = s.Repo.UpdateHistory(stockID, price, date)
+		if err != nil {
+			fmt.Println("History insert error:", err)
+			continue
+		}
+	}
+
+	return nil
+}
