@@ -12,9 +12,18 @@ function showGraph(symbol){
     .then(res => res.json())
     .then(response => {
 
-        const data = response.data
+        const data = response.data   // ✅ correct
 
-        const labels = data.map(d => d.date)
+        if(!data || data.length === 0){
+            alert("No history available")
+            return
+        }
+
+        // ✅ Format dates properly
+        const labels = data.map(d => 
+            new Date(d.date).toLocaleDateString()
+        )
+
         const prices = data.map(d => d.price)
 
         document.getElementById("chartTitle").innerText = symbol + " Price History"
@@ -32,13 +41,22 @@ function showGraph(symbol){
                 labels: labels,
                 datasets: [{
                     label: "Price",
-                    data: prices
+                    data: prices,
+                    tension: 0.3   // smooth curve
                 }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                }
             }
         })
     })
-}
-
-function closeChart(){
-    document.getElementById("chartModal").style.display = "none"
+    .catch(err => {
+        console.error(err)
+        alert("Failed to load graph")
+    })
 }
