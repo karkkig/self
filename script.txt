@@ -1,62 +1,76 @@
-let chartInstance = null
+<button onclick="openReset()">🔐 Reset Password</button>
 
-function showGraph(symbol){
+<div id="resetModal" style="display:none; position:fixed; top:20%; left:35%; width:30%; background:white; padding:20px; border:1px solid black;">
+
+    <h3>Reset Password</h3>
+
+    Old Password:<br>
+    <input type="password" id="oldPass"><br><br>
+
+    New Password:<br>
+    <input type="password" id="newPass"><br><br>
+
+    Re-enter Password:<br>
+    <input type="password" id="rePass"><br><br>
+
+    <p id="resetMsg"></p>
+
+    <button onclick="submitReset()">Submit</button>
+    <button onclick="closeReset()">Cancel</button>
+
+</div>
+
+function openReset(){
+    document.getElementById("resetModal").style.display = "block"
+}
+
+function closeReset(){
+    document.getElementById("resetModal").style.display = "none"
+}
+
+function submitReset(){
 
     const token = localStorage.getItem("token")
 
-    fetch(API + "/api/stocks/history/" + symbol, {
+    const oldpassword = document.getElementById("oldPass").value
+    const newpassword = document.getElementById("newPass").value
+    const reenterpassword = document.getElementById("rePass").value
+
+    if(!oldpassword || !newpassword || !reenterpassword){
+        document.getElementById("resetMsg").innerText = "All fields required"
+        return
+    }
+
+    if(newpassword !== reenterpassword){
+        document.getElementById("resetMsg").innerText = "Passwords do not match"
+        return
+    }
+
+    fetch(API + "/api/profile/reset", {
+        method: "PUT",
         headers: {
+            "Content-Type": "application/json",
             "Authorization": "Bearer " + token
-        }
+        },
+        body: JSON.stringify({
+            oldpassword,
+            newpassword,
+            reenterpassword
+        })
     })
     .then(res => res.json())
-    .then(response => {
+    .then(data => {
 
-        const data = response.data   // ✅ correct
+        document.getElementById("resetMsg").innerText = data.message
 
-        if(!data || data.length === 0){
-            alert("No history available")
-            return
+        if(data.status === "success"){
+            setTimeout(() => {
+                closeReset()
+            }, 1500)
         }
-
-        // ✅ Format dates properly
-        const labels = data.map(d => 
-            new Date(d.date).toLocaleDateString()
-        )
-
-        const prices = data.map(d => d.price)
-
-        document.getElementById("chartTitle").innerText = symbol + " Price History"
-        document.getElementById("chartModal").style.display = "block"
-
-        const ctx = document.getElementById("stockChart").getContext("2d")
-
-        if(chartInstance){
-            chartInstance.destroy()
-        }
-
-        chartInstance = new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: "Price",
-                    data: prices,
-                    tension: 0.3   // smooth curve
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        display: true
-                    }
-                }
-            }
-        })
     })
     .catch(err => {
         console.error(err)
-        alert("Failed to load graph")
+        document.getElementById("resetMsg").innerText = "Reset failed"
     })
 }
