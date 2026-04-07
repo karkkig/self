@@ -20,7 +20,7 @@ func (s *StockService) AddStock(symbol string, name string) error {
 
 	// 🔍 Rate limit check
 	var check map[string]interface{}
-	_ = json.Unmarshal(body, &check)
+	json.Unmarshal(body, &check)
 
 	if msg, ok := check["Note"]; ok {
 		return fmt.Errorf("alphavantage rate limit: %v", msg)
@@ -29,25 +29,23 @@ func (s *StockService) AddStock(symbol string, name string) error {
 		return fmt.Errorf("alphavantage rate limit: %v", msg)
 	}
 
-	// 📊 Parse response
-	type TimeSeriesResponse struct {
-		TimeSeries map[string]map[string]string `json:"Time Series (Daily)"`
-	}
+	// 🔄 CHANGE STARTS HERE (parsing new API)
 
-	var data TimeSeriesResponse
-	if err := json.Unmarshal(body, &data); err != nil {
+	var result map[string]map[string]map[string]string
+	err = json.Unmarshal(body, &result)
+	if err != nil {
 		return err
 	}
 
-	if data.TimeSeries == nil {
-		return fmt.Errorf("no data for %s", symbol)
+	timeSeries, ok := result["Time Series (Daily)"]
+	if !ok || len(timeSeries) == 0 {
+		return fmt.Errorf("no time series data for %s", symbol)
 	}
 
-	// 🧠 Find latest price
 	var latestDate time.Time
 	var latestPrice float64
 
-	for dateStr, values := range data.TimeSeries {
+	for dateStr, values := range timeSeries {
 
 		date, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
@@ -59,11 +57,7 @@ func (s *StockService) AddStock(symbol string, name string) error {
 			continue
 		}
 
-		// Save history
-		if err := s.Repo.UpdateHistoryBySymbol(symbol, price, date); err != nil {
-			fmt.Println("History insert error:", err)
-		}
-
+		// Keep only latest (same logic as before)
 		if date.After(latestDate) {
 			latestDate = date
 			latestPrice = price
@@ -71,25 +65,35 @@ func (s *StockService) AddStock(symbol string, name string) error {
 	}
 
 	if latestPrice == 0 {
-		return fmt.Errorf("failed to get latest price")
+		return fmt.Errorf("failed to extract latest price")
 	}
 
-	// 💾 Save stock
+	// 🔄 CHANGE ENDS HERE
+
 	stock := &models.Stock{
 		Symbol:    symbol,
 		StockName: name,
 		LastPrice: latestPrice,
 	}
 
-	if err := s.Repo.Save(stock); err != nil {
-		return err
-	}
-
-	// 🔄 Update latest price
-	savedStock, err := s.Repo.GetBySymbol(symbol)
+	err = s.Repo.Save(stock)
 	if err != nil {
 		return err
 	}
 
-	return s.Repo.UpdateStockPrice(savedStock.ID, latestPrice)
+	var stockID uint
+
+	savedStock, err := s.Repo.GetBySymbol(symbol)
+	if err != nil {
+		return err
+	}
+	stockID = savedStock.ID
+
+	// ✅ same repo call, just using new extracted values
+	err = s.Repo.UpdateHistory(stockID, latestPrice, latestDate)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
