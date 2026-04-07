@@ -1,58 +1,44 @@
-package service
+let chartInstance = null
 
-import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"time"
-	"karkki-hub/Stock-Portfolio-Manager/internal/repo"
-)
+function showGraph(symbol){
 
-type PriceService struct {
-	StockRepo repo.StockRepository
+    const token = localStorage.getItem("token")
+
+    fetch(API + "/api/stocks/history/" + symbol, {
+        headers: {
+            "Authorization": "Bearer " + token
+        }
+    })
+    .then(res => res.json())
+    .then(response => {
+
+        const data = response.data
+
+        const labels = data.map(d => d.date)
+        const prices = data.map(d => d.price)
+
+        document.getElementById("chartTitle").innerText = symbol + " Price History"
+        document.getElementById("chartModal").style.display = "block"
+
+        const ctx = document.getElementById("stockChart").getContext("2d")
+
+        if(chartInstance){
+            chartInstance.destroy()
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Price",
+                    data: prices
+                }]
+            }
+        })
+    })
 }
 
-func NewPriceService(stockRepo repo.StockRepository) *PriceService {
-	return &PriceService{StockRepo: stockRepo}
-}
-
-type apiResponse struct {
-	GlobalQuote struct {
-		Price string `json:"05. price"`
-	} `json:"Global Quote"`
-}
-
-func (s *PriceService) UpdatePrices() {
-
-	stocks, err := s.StockRepo.GetAllStocks()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-
-	for _, stock := range stocks {
-
-		url := fmt.Sprintf(
-			"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=YOUR_API_KEY",
-			stock.Symbol,
-		)
-
-		resp, err := http.Get(url)
-		if err != nil {
-			continue
-		}
-
-		var data apiResponse
-		json.NewDecoder(resp.Body).Decode(&data)
-		resp.Body.Close()
-
-		var price float64
-		fmt.Sscanf(data.GlobalQuote.Price, "%f", &price)
-
-		_ = s.StockRepo.UpdateStockPrice(stock.ID, price)
-
-		time.Sleep(12 * time.Second) // rate limit safety
-	}
-
-	fmt.Println("✅ Prices Updated")
+function closeChart(){
+    document.getElementById("chartModal").style.display = "none"
 }
