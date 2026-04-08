@@ -1,76 +1,41 @@
-<button onclick="openReset()">🔐 Reset Password</button>
+func (h *ReportHandler) ListReports(c echo.Context) error {
+    userID := getUserID(c)
+	basepath := "reports"
 
-<div id="resetModal" style="display:none; position:fixed; top:20%; left:35%; width:30%; background:white; padding:20px; border:1px solid black;">
+	files, err := os.ReadDir(basepath)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, models.ErrorResponse(err.Error()))
+	}
 
-    <h3>Reset Password</h3>
+	var result []string
 
-    Old Password:<br>
-    <input type="password" id="oldPass"><br><br>
-
-    New Password:<br>
-    <input type="password" id="newPass"><br><br>
-
-    Re-enter Password:<br>
-    <input type="password" id="rePass"><br><br>
-
-    <p id="resetMsg"></p>
-
-    <button onclick="submitReset()">Submit</button>
-    <button onclick="closeReset()">Cancel</button>
-
-</div>
-
-function openReset(){
-    document.getElementById("resetModal").style.display = "block"
+	for _, file := range files {
+	if strings.HasPrefix(file.Name(), fmt.Sprintf("%d-", userID)) {
+		result = append(result, file.Name())
+	}
 }
 
-function closeReset(){
-    document.getElementById("resetModal").style.display = "none"
+	return c.JSON(http.StatusOK, models.SuccessResponse("reports fetched", result))
 }
 
-function submitReset(){
+func (h *ReportHandler) DownloadReport(c echo.Context) error {
 
-    const token = localStorage.getItem("token")
+	filename := c.Param("filename")
 
-    const oldpassword = document.getElementById("oldPass").value
-    const newpassword = document.getElementById("newPass").value
-    const reenterpassword = document.getElementById("rePass").value
+	basepath := "reports"
+	filepath := fmt.Sprintf("%s/%s", basepath, filename)
 
-    if(!oldpassword || !newpassword || !reenterpassword){
-        document.getElementById("resetMsg").innerText = "All fields required"
-        return
-    }
+	// 🔒 security: prevent ../ attacks
+	if strings.Contains(filename, "..") {
+		return c.JSON(http.StatusBadRequest, models.ErrorResponse("invalid filename"))
+	}
 
-    if(newpassword !== reenterpassword){
-        document.getElementById("resetMsg").innerText = "Passwords do not match"
-        return
-    }
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		return c.JSON(http.StatusNotFound, models.ErrorResponse("file not found"))
+	}
 
-    fetch(API + "/api/profile/reset", {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-        },
-        body: JSON.stringify({
-            oldpassword,
-            newpassword,
-            reenterpassword
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-
-        document.getElementById("resetMsg").innerText = data.message
-
-        if(data.status === "success"){
-            setTimeout(() => {
-                closeReset()
-            }, 1500)
-        }
-    })
-    .catch(err => {
-        console.error(err)
-        document.getElementById("resetMsg").innerText = "Reset failed"
-    })
+	return c.Attachment(filepath, filename)
 }
+
+e.GET("/api/reports", reportHandler.ListReports)
+e.GET("/api/reports/:filename", reportHandler.DownloadReport)
