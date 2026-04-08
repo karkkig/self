@@ -1,41 +1,73 @@
-func (h *ReportHandler) ListReports(c echo.Context) error {
-    userID := getUserID(c)
-	basepath := "reports"
+<button onclick="goReports()">Reports</button>
 
-	files, err := os.ReadDir(basepath)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, models.ErrorResponse(err.Error()))
-	}
-
-	var result []string
-
-	for _, file := range files {
-	if strings.HasPrefix(file.Name(), fmt.Sprintf("%d-", userID)) {
-		result = append(result, file.Name())
-	}
+function goReports(){
+    window.location = "reports.html"
 }
 
-	return c.JSON(http.StatusOK, models.SuccessResponse("reports fetched", result))
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reports</title>
+</head>
+<script src="script.js"></script>
+
+<body onload="loadReports()">
+
+<h2>My Reports</h2>
+
+<button onclick="goWatchlist()">Back to Watchlist</button>
+
+<table border="1">
+    <thead>
+        <tr>
+            <th>File</th>
+            <th>Download</th>
+        </tr>
+    </thead>
+    <tbody id="reportsTable"></tbody>
+</table>
+
+</body>
+</html>
+
+function loadReports(){
+
+    const token = localStorage.getItem("token")
+
+    fetch(API + "/api/reports", {
+        headers:{
+            "Authorization":"Bearer " + token
+        }
+    })
+    .then(res=>res.json())
+    .then(response=>{
+
+        const files = response.data
+        const table = document.getElementById("reportsTable")
+        table.innerHTML = ""
+
+        files.forEach(file => {
+
+            const tr = document.createElement("tr")
+
+            tr.innerHTML = `
+                <td>${file}</td>
+                <td>
+                    <button onclick="downloadReport('${file}')">
+                        Download
+                    </button>
+                </td>
+            `
+
+            table.appendChild(tr)
+        })
+    })
 }
 
-func (h *ReportHandler) DownloadReport(c echo.Context) error {
-
-	filename := c.Param("filename")
-
-	basepath := "reports"
-	filepath := fmt.Sprintf("%s/%s", basepath, filename)
-
-	// 🔒 security: prevent ../ attacks
-	if strings.Contains(filename, "..") {
-		return c.JSON(http.StatusBadRequest, models.ErrorResponse("invalid filename"))
-	}
-
-	if _, err := os.Stat(filepath); os.IsNotExist(err) {
-		return c.JSON(http.StatusNotFound, models.ErrorResponse("file not found"))
-	}
-
-	return c.Attachment(filepath, filename)
+function downloadReport(filename){
+    window.open(API + "/api/reports/" + filename, "_blank")
 }
 
-e.GET("/api/reports", reportHandler.ListReports)
-e.GET("/api/reports/:filename", reportHandler.DownloadReport)
+function goWatchlist(){
+    window.location = "watchlist.html"
+}
