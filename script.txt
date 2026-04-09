@@ -1,17 +1,22 @@
-let stockData = [];
+document.addEventListener("DOMContentLoaded", () => {
 
-function loadPortfolio() {
+    console.log("DOM loaded");
 
-    const token = localStorage.getItem("token");
+    // ✅ REPORTS PAGE
+    if (document.getElementById("reportsTable")) {
 
-    fetch(API + "/api/portfolio", {
-        headers: { "Authorization": "Bearer " + token }
-    })
-    .then(res => res.json())
-    .then(response => {
+        const filterBtn = document.getElementById("filter-btn")
+        const resetBtn = document.getElementById("reset-btn")
 
-        stockData = response.data.stocks || [];   // 🔥 IMPORTANT
+        if (filterBtn) {
+            filterBtn.addEventListener("click", applyDateFilter)
+        }
 
-        renderTable();
-    });
-}
+        if (resetBtn) {
+            resetBtn.addEventListener("click", resetDateFilter)
+        }
+
+        loadReports()
+    }
+
+})
