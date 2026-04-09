@@ -1,169 +1,47 @@
--- ==========================================================
--- Stockport Database Migration Script (Idempotent)
--- ==========================================================
+function loadPortfolio() {
 
--- ==========================
--- Table: users
--- ==========================
-CREATE TABLE IF NOT EXISTS users (
-    user_id        BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name           VARCHAR(100) NOT NULL,
-    email          VARCHAR(150) NOT NULL,
-    api_token      VARCHAR(255) NOT NULL,
-    phone          VARCHAR(20),
-    address        TEXT,
-    password       VARCHAR(255) NOT NULL,
-    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    const token = localStorage.getItem("token")
 
-    UNIQUE KEY uq_users_email (email),
-    UNIQUE KEY uq_users_api_token (api_token),
-    UNIQUE KEY uq_users_phone (phone)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    fetch(API + "/api/portfolio", {
+        headers: {
+            "Authorization": "Bearer " + token
+        }
+    })
+    .then(res => res.json())
+    .then(response => {
 
+        const data = response.data
 
--- ==========================
--- Table: stocks
--- ==========================
-CREATE TABLE IF NOT EXISTS stocks (
-    stock_id       BIGINT AUTO_INCREMENT PRIMARY KEY,
-    symbol         VARCHAR(20) NOT NULL,
-    stock_name     VARCHAR(150) NOT NULL,
-    last_price     DECIMAL(15,2) DEFAULT 0.00,
-    last_updated   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        console.log("PORTFOLIO:", data)
 
-    UNIQUE KEY uq_stocks_symbol (symbol)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        document.getElementById("totalInvestment").innerText = (data.tot_investment || 0).toFixed(2)
+        document.getElementById("currentValue").innerText = (data.tot_current_value || 0).toFixed(2)
+        document.getElementById("totalPL").innerText = (data.total_profit_loss || 0).toFixed(2)
 
+        const table = document.getElementById("stockTable")
+        table.innerHTML = ""
 
--- ==========================
--- Table: portfolios
--- ==========================
-CREATE TABLE IF NOT EXISTS portfolios (
-    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id            BIGINT NOT NULL,
-    stock_id           BIGINT NOT NULL,
-    qty                DECIMAL(15,4) DEFAULT 0.0000,
-    avg_buy_price      DECIMAL(15,2) DEFAULT 0.00,
-    tot_investment     DECIMAL(18,2) DEFAULT 0.00,
-    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        if (!data || !data.stocks || data.stocks.length === 0) {
+            table.innerHTML = "<tr><td colspan='6'>No portfolio data</td></tr>"
+            return
+        }
 
-    UNIQUE KEY uq_portfolio_user_stock (user_id, stock_id),
+        data.stocks.forEach(stock => {
 
-    CONSTRAINT fk_portfolio_user
-        FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE,
+            const tr = document.createElement("tr")
 
-    CONSTRAINT fk_portfolio_stock
-        FOREIGN KEY (stock_id) REFERENCES stocks(stock_id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            tr.innerHTML = `
+                <td>${stock.symbol}</td>
+                <td>${stock.qty}</td>
+                <td>${(stock.avg_buy_price || 0).toFixed(2)}</td>
+                <td>${(stock.current_value || 0).toFixed(2)}</td>
+                <td>${(stock.profit_loss || 0).toFixed(2)}</td>
+                <td style="color:${stock.profit_loss >= 0 ? 'green' : 'red'}">
+                    ${stock.profit_loss >= 0 ? 'Profit' : 'Loss'}
+                </td>
+            `
 
-
--- ==========================
--- Table: stock_list
--- ==========================
-CREATE TABLE IF NOT EXISTS stock_list (
-    symbol       TEXT,
-    stock_name   TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ==========================
--- Table: stock_price_history
--- ==========================
-CREATE TABLE IF NOT EXISTS stock_price_history (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    stock_id        BIGINT NOT NULL,
-    closing_price   DECIMAL(15,2) NOT NULL,
-    price_date      DATE NOT NULL,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE KEY uq_stock_date (stock_id, price_date),
-
-    CONSTRAINT fk_price_stock
-        FOREIGN KEY (stock_id) REFERENCES stocks(stock_id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ==========================
--- Table: transactions
--- ==========================
-CREATE TABLE IF NOT EXISTS transactions (
-    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id            BIGINT NOT NULL,
-    stock_id           BIGINT NOT NULL,
-    transaction_type   ENUM('BUY','SELL') NOT NULL,
-    qty                DECIMAL(15,4) NOT NULL,
-    price              DECIMAL(15,2) NOT NULL,
-    tot_amt            DECIMAL(18,2)
-                       GENERATED ALWAYS AS (qty * price) STORED,
-    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_transaction_user
-        FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_transaction_stock
-        FOREIGN KEY (stock_id) REFERENCES stocks(stock_id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ==========================
--- Table: watchlist
--- ==========================
-CREATE TABLE IF NOT EXISTS watchlist (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id      BIGINT NOT NULL,
-    stock_id     BIGINT NOT NULL,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE KEY uq_watchlist_user_stock (user_id, stock_id),
-
-    CONSTRAINT fk_watchlist_user
-        FOREIGN KEY (user_id) REFERENCES users(user_id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_watchlist_stock
-        FOREIGN KEY (stock_id) REFERENCES stocks(stock_id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ==========================
--- Table: cron_jobs
--- ==========================
-CREATE TABLE IF NOT EXISTS cron_jobs (
-    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
-    job_name     VARCHAR(100) NOT NULL,
-    status       ENUM('SUCCESS','FAILED'),
-    message      TEXT,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE KEY uq_cron_job_name (job_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ==========================
--- Table: reports
--- ==========================
-CREATE TABLE IF NOT EXISTS reports (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    file_name       VARCHAR(50) NOT NULL,
-    report_type     VARCHAR(255) NOT NULL,
-    generated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status          ENUM('SUCCESS','FAILED') DEFAULT 'SUCCESS',
-
-    daily_file_name VARCHAR(255)
-        GENERATED ALWAYS AS (
-            CASE 
-                WHEN report_type = 'daily' THEN file_name 
-                ELSE NULL 
-            END
-        ) STORED,
-
-    UNIQUE KEY uq_reports_daily (daily_file_name, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            table.appendChild(tr)
+        })
+    })
+}
