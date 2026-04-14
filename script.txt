@@ -1,22 +1,96 @@
-document.addEventListener("DOMContentLoaded", () => {
+🟦 Slide: Overview
 
-    console.log("DOM loaded");
+Stock Portfolio Manager
 
-    // ✅ REPORTS PAGE
-    if (document.getElementById("reportsTable")) {
-
-        const filterBtn = document.getElementById("filter-btn")
-        const resetBtn = document.getElementById("reset-btn")
-
-        if (filterBtn) {
-            filterBtn.addEventListener("click", applyDateFilter)
-        }
-
-        if (resetBtn) {
-            resetBtn.addEventListener("click", resetDateFilter)
-        }
-
-        loadReports()
-    }
-
-})
+Web-based application to manage stock investments
+Allows users to:
+Track portfolio performance
+Buy/Sell stocks
+Maintain watchlist
+Generate reports
+Built using:
+Backend: Golang (Echo)
+Frontend: HTML, CSS, JavaScript
+Database: MySQL
+🟦 Slide: Project Requirements
+Functional Requirements
+User registration & login (JWT authentication)
+Stock search functionality
+Buy/Sell transactions
+Portfolio tracking
+Watchlist management
+Report generation (CSV)
+Non-Functional Requirements
+Fast API response
+Secure authentication
+Data consistency
+Scalable backend structure
+🟦 Slide: Project Description
+The system helps users manage stock investments efficiently
+Users can:
+Add stocks to watchlist
+Perform transactions
+View real-time portfolio performance
+Backend handles:
+Business logic
+Database operations
+API integrations
+Frontend dynamically renders data using JavaScript
+🟦 Slide: Project Flow
+User registers/logs in
+JWT token generated
+User searches stocks
+Adds stocks to watchlist
+Performs Buy/Sell transactions
+Portfolio updates automatically
+User views analytics (P/L, totals)
+Reports generated/downloaded
+🟦 Slide: Challenges Faced
+1. Sorting Not Working (Frontend)
+Issue: Data not sorting despite UI interaction
+Fix:
+Stored API data in global array
+Rendered using sorted data
+2. API Data Handling
+Issue: Nested JSON parsing errors
+Fix:
+Correct struct mapping
+Proper type conversion
+3. Asynchronous Calls
+Issue: UI rendering before data loaded
+Fix:
+Controlled rendering after API response
+4. Database Relations
+Issue: Foreign key constraints
+Fix:
+Proper schema design
+Cascade handling
+🟦 Slide: Solutions Implemented
+Global state management for sorting
+Retry mechanism for API calls
+Clean separation:
+Handler → Service → Repository
+Efficient SQL schema with indexing
+🟦 Slide: Learning Outcomes
+Hands-on experience with Golang backend development
+Learned REST API design
+Improved understanding of:
+Database design (MySQL)
+Foreign keys & constraints
+Debugging real-world issues:
+Sorting bugs
+Async JS problems
+Frontend + Backend integration
+🟦 Slide: References
+Golang Documentation
+Echo Framework Docs
+MySQL Documentation
+Alpha Vantage API (Stock data)
+MDN Web Docs (JavaScript)
+🟦 Slide: Conclusion
+Successfully built a full-stack portfolio manager
+Implemented real-world features:
+Authentication
+Transactions
+Reporting
+Scalable and extendable system
