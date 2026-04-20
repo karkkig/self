@@ -1,18 +1,68 @@
-🎯 Slide 1: Challenges Faced
-Frontend sorting not working correctly
-Parsing complex nested JSON from external API
-Asynchronous API calls causing premature UI rendering
-Managing database relationships and foreign key constraints
-Real-time portfolio calculation inconsistencies
-Handling API rate limits from external service
-Duplicate entries in watchlist
-Implementing secure authentication for private APIs
-⚙️ Slide 2: Solutions Implemented
-Stored API data in arrays and applied sorting before rendering
-Designed proper Go structs and handled type conversions
-Used async/await and controlled UI rendering after data load
-Optimized database schema with proper foreign keys and constraints
-Recalculated portfolio dynamically using latest stock prices
-Reduced external API calls using local stock database
-Added validation and uniqueness constraints for watchlist
-Implemented JWT-based authentication middleware
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	file, err := os.Create("output.pdf")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	// Minimal PDF structure
+	pdf := `%PDF-1.1
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]
+   /Contents 4 0 R
+   /Resources << /Font << /F1 5 0 R >> >>
+>>
+endobj
+
+4 0 obj
+<< /Length 44 >>
+stream
+BT
+/F1 24 Tf
+100 700 Td
+(Hello from pure Go PDF!) Tj
+ET
+endstream
+endobj
+
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000060 00000 n 
+0000000117 00000 n 
+0000000278 00000 n 
+0000000389 00000 n 
+
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+497
+%%EOF`
+
+	_, err = file.WriteString(pdf)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("PDF generated: output.pdf")
+}
