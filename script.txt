@@ -4,97 +4,94 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"os/exec"
 
 	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
 )
 
-// Sample dynamic data struct
 type ReportData struct {
-	Title   string
-	Name    string
-	Items   []string
-	Total   float64
+	Title string
+	Name  string
+	Items []string
+	Total float64
 }
 
-// Function to render HTML from template + data
-func renderTemplate(data ReportData) (string, error) {
-	tmpl := `
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<meta charset="UTF-8">
-		<title>{{.Title}}</title>
-	</head>
-	<body>
-		<h1>{{.Title}}</h1>
-		<p>User: {{.Name}}</p>
-
-		<h3>Items:</h3>
-		<ul>
-			{{range .Items}}
-				<li>{{.}}</li>
-			{{end}}
-		</ul>
-
-		<h2>Total: {{.Total}}</h2>
-	</body>
-	</html>
-	`
-
-	t, err := template.New("report").Parse(tmpl)
+// Render HTML from file
+func renderTemplate(path string, data ReportData) (string, error) {
+	t, err := template.ParseFiles(path)
 	if err != nil {
 		return "", err
 	}
 
 	var buf bytes.Buffer
-	err = t.Execute(&buf, data)
-	if err != nil {
+	if err := t.Execute(&buf, data); err != nil {
 		return "", err
 	}
 
 	return buf.String(), nil
 }
 
-// Function to generate PDF
-func generatePDF(htmlContent string, outputPath string) error {
+// Generate PDF (no os/exec)
+func generatePDF(html string, output string) error {
 	pdfg, err := wkhtmltopdf.NewPDFGenerator()
 	if err != nil {
 		return err
 	}
 
-	page := wkhtmltopdf.NewPageReader(bytes.NewReader([]byte(htmlContent)))
+	page := wkhtmltopdf.NewPageReader(bytes.NewReader([]byte(html)))
 	pdfg.AddPage(page)
 
 	// Optional settings
 	pdfg.PageSize.Set(wkhtmltopdf.PageSizeA4)
 	pdfg.Dpi.Set(300)
 
-	err = pdfg.Create()
-	if err != nil {
+	// Create PDF
+	if err := pdfg.Create(); err != nil {
 		return err
 	}
 
-	return pdfg.WriteFile(outputPath)
+	return pdfg.WriteFile(output)
 }
 
 func main() {
 	data := ReportData{
-		Title: "Sales Report",
+		Title: "Stock Report",
 		Name:  "Karkki",
-		Items: []string{"Stock A", "Stock B", "Stock C"},
-		Total: 12345.67,
+		Items: []string{"AAPL", "GOOG", "TSLA"},
+		Total: 25000.50,
 	}
 
-	html, err := renderTemplate(data)
+	html, err := renderTemplate("templates/report.html", data)
 	if err != nil {
 		panic(err)
 	}
 
-	err = generatePDF(html, "report.pdf")
-	if err != nil {
+	if err := generatePDF(html, "report.pdf"); err != nil {
 		panic(err)
 	}
 
 	fmt.Println("PDF generated successfully!")
 }
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{.Title}}</title>
+</head>
+<body>
+
+<h1>{{.Title}}</h1>
+<p>User: {{.Name}}</p>
+
+<ul>
+    {{range .Items}}
+        <li>{{.}}</li>
+    {{end}}
+</ul>
+
+<h2>Total: {{.Total}}</h2>
+
+</body>
+</html>
