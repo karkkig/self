@@ -1,68 +1,100 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"os"
+	"html/template"
+	"os/exec"
+
+	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
 )
 
+// Sample dynamic data struct
+type ReportData struct {
+	Title   string
+	Name    string
+	Items   []string
+	Total   float64
+}
+
+// Function to render HTML from template + data
+func renderTemplate(data ReportData) (string, error) {
+	tmpl := `
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<meta charset="UTF-8">
+		<title>{{.Title}}</title>
+	</head>
+	<body>
+		<h1>{{.Title}}</h1>
+		<p>User: {{.Name}}</p>
+
+		<h3>Items:</h3>
+		<ul>
+			{{range .Items}}
+				<li>{{.}}</li>
+			{{end}}
+		</ul>
+
+		<h2>Total: {{.Total}}</h2>
+	</body>
+	</html>
+	`
+
+	t, err := template.New("report").Parse(tmpl)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	err = t.Execute(&buf, data)
+	if err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+// Function to generate PDF
+func generatePDF(htmlContent string, outputPath string) error {
+	pdfg, err := wkhtmltopdf.NewPDFGenerator()
+	if err != nil {
+		return err
+	}
+
+	page := wkhtmltopdf.NewPageReader(bytes.NewReader([]byte(htmlContent)))
+	pdfg.AddPage(page)
+
+	// Optional settings
+	pdfg.PageSize.Set(wkhtmltopdf.PageSizeA4)
+	pdfg.Dpi.Set(300)
+
+	err = pdfg.Create()
+	if err != nil {
+		return err
+	}
+
+	return pdfg.WriteFile(outputPath)
+}
+
 func main() {
-	file, err := os.Create("output.pdf")
-	if err != nil {
-		panic(err)
+	data := ReportData{
+		Title: "Sales Report",
+		Name:  "Karkki",
+		Items: []string{"Stock A", "Stock B", "Stock C"},
+		Total: 12345.67,
 	}
-	defer file.Close()
 
-	// Minimal PDF structure
-	pdf := `%PDF-1.1
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]
-   /Contents 4 0 R
-   /Resources << /Font << /F1 5 0 R >> >>
->>
-endobj
-
-4 0 obj
-<< /Length 44 >>
-stream
-BT
-/F1 24 Tf
-100 700 Td
-(Hello from pure Go PDF!) Tj
-ET
-endstream
-endobj
-
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-
-xref
-0 6
-0000000000 65535 f 
-0000000010 00000 n 
-0000000060 00000 n 
-0000000117 00000 n 
-0000000278 00000 n 
-0000000389 00000 n 
-
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-497
-%%EOF`
-
-	_, err = file.WriteString(pdf)
+	html, err := renderTemplate(data)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("PDF generated: output.pdf")
+	err = generatePDF(html, "report.pdf")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("PDF generated successfully!")
 }
