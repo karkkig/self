@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/cdproto/page"
 )
 
 // Read HTML file
@@ -25,50 +27,51 @@ func generatePDF(html string, output string) error {
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
 
-	// Timeout (important)
-	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
+	// Add timeout
+	ctx, cancel = context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
 	var pdfBuf []byte
 
-	// Run browser tasks
+	// Convert HTML to data URL (MOST RELIABLE METHOD)
+	htmlURL := "data:text/html," + url.PathEscape(html)
+
+	// Run tasks
 	err := chromedp.Run(ctx,
+		chromedp.Navigate(htmlURL),
+		chromedp.Sleep(2*time.Second), // wait for rendering
 
-		// Open blank page
-		chromedp.Navigate("about:blank"),
-
-		// Inject your HTML
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			return chromedp.SetInnerHTML("html", html).Do(ctx)
+			buf, _, err := page.PrintToPDF().
+				WithPrintBackground(true).
+				WithPaperWidth(8.27).  // A4 width
+				WithPaperHeight(11.69). // A4 height
+				Do(ctx)
+
+			pdfBuf = buf
+			return err
 		}),
-
-		// Wait for rendering (important for CSS/images)
-		chromedp.Sleep(2*time.Second),
-
-		// Generate PDF
-		chromedp.PrintToPDF().
-			WithPrintBackground(true).
-			WithPaperWidth(8.27).  // A4 width (inches)
-			WithPaperHeight(11.69). // A4 height
-			Do(&pdfBuf),
 	)
 
 	if err != nil {
 		return err
 	}
 
-	// Save file
+	// Save PDF
 	return os.WriteFile(output, pdfBuf, 0644)
 }
 
 func main() {
+
+	// Create output folder (optional)
+	os.MkdirAll("output", os.ModePerm)
 
 	// Invoice
 	invoiceHTML, err := readHTML("invoice.html")
 	if err != nil {
 		panic(err)
 	}
-	err = generatePDF(invoiceHTML, "invoice.pdf")
+	err = generatePDF(invoiceHTML, "output/invoice.pdf")
 	if err != nil {
 		panic(err)
 	}
@@ -78,7 +81,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = generatePDF(qrHTML, "qr.pdf")
+	err = generatePDF(qrHTML, "output/qr.pdf")
 	if err != nil {
 		panic(err)
 	}
@@ -88,10 +91,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = generatePDF(agreementHTML, "agreement.pdf")
+	err = generatePDF(agreementHTML, "output/agreement.pdf")
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("All PDFs generated successfully!")
+	fmt.Println("✅ All PDFs generated successfully!")
 }
