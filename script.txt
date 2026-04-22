@@ -1,14 +1,15 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
+	"github.com/chromedp/chromedp"
 )
 
-// Read HTML file as string
+// Read HTML file
 func readHTML(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -17,39 +18,80 @@ func readHTML(path string) (string, error) {
 	return string(data), nil
 }
 
-// Generate PDF
+// Generate PDF using chromedp
 func generatePDF(html string, output string) error {
-	pdfg, err := wkhtmltopdf.NewPDFGenerator()
+
+	// Create context
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	// Timeout (important)
+	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	var pdfBuf []byte
+
+	// Run browser tasks
+	err := chromedp.Run(ctx,
+
+		// Open blank page
+		chromedp.Navigate("about:blank"),
+
+		// Inject your HTML
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return chromedp.SetInnerHTML("html", html).Do(ctx)
+		}),
+
+		// Wait for rendering (important for CSS/images)
+		chromedp.Sleep(2*time.Second),
+
+		// Generate PDF
+		chromedp.PrintToPDF().
+			WithPrintBackground(true).
+			WithPaperWidth(8.27).  // A4 width (inches)
+			WithPaperHeight(11.69). // A4 height
+			Do(&pdfBuf),
+	)
+
 	if err != nil {
 		return err
 	}
 
-	page := wkhtmltopdf.NewPageReader(bytes.NewReader([]byte(html)))
-	pdfg.AddPage(page)
-
-	pdfg.PageSize.Set(wkhtmltopdf.PageSizeA4)
-	pdfg.Dpi.Set(300)
-
-	if err := pdfg.Create(); err != nil {
-		return err
-	}
-
-	return pdfg.WriteFile(output)
+	// Save file
+	return os.WriteFile(output, pdfBuf, 0644)
 }
 
 func main() {
 
-	// Agreement PDF
-	agreementHTML, _ := readHTML("agreement.html")
-	generatePDF(agreementHTML, "agreement.pdf")
+	// Invoice
+	invoiceHTML, err := readHTML("invoice.html")
+	if err != nil {
+		panic(err)
+	}
+	err = generatePDF(invoiceHTML, "invoice.pdf")
+	if err != nil {
+		panic(err)
+	}
 
-	// QR PDF
-	qrHTML, _ := readHTML("qr.html")
-	generatePDF(qrHTML, "qr.pdf")
+	// QR
+	qrHTML, err := readHTML("qr.html")
+	if err != nil {
+		panic(err)
+	}
+	err = generatePDF(qrHTML, "qr.pdf")
+	if err != nil {
+		panic(err)
+	}
 
-	// Invoice PDF
-	invoiceHTML, _ := readHTML("invoice.html")
-	generatePDF(invoiceHTML, "invoice.pdf")
+	// Agreement
+	agreementHTML, err := readHTML("agreement.html")
+	if err != nil {
+		panic(err)
+	}
+	err = generatePDF(agreementHTML, "agreement.pdf")
+	if err != nil {
+		panic(err)
+	}
 
 	fmt.Println("All PDFs generated successfully!")
 }
