@@ -1,46 +1,153 @@
- 
-	// ── 2 & 3. Services Agreement (p.1) + Payment Plan (p.2) — single PDF ────
-	fullAgreement := pdf.FullAgreementData{
-		// Page 1 — Services Agreement
-		State:           "California",
-		Day:             "1st",
-		Month:           "January",
-		Year:            "25",
-		ProviderName:    "Acme Services Inc.",
-		ProviderAddress: "123 Main Street, Los Angeles, CA 90001",
-		BuyerName:       "Globex Corp.",
-		BuyerAddress:    "456 Market Street, San Francisco, CA 94105",
-		Services: []pdf.ServiceItem{
-			{"Web Development", "2", "5,000"},
-			{"UI/UX Design", "1", "3,000"},
-			{"SEO Package", "3", "1,200"},
-			{"Maintenance (monthly)", "6", "800"},
-		},
-		PurchasePrice: "20,000",
-		Notes:         "All work will be delivered digitally. Revisions are limited to 3 rounds per project.",
- 
-		// Page 2 — Payment Plan
-		Payer:           "John Doe",
-		Payee:           "Jane Smith",
-		Product:         "Web Development Services",
-		AmountPerPeriod: "$500",
-		Interval:        "month",
-		TotalAmount:     "$3,000",
-		Payments: []pdf.PaymentEntry{
-			{"1 Feb 2025", "$500"},
-			{"1 Mar 2025", "$500"},
-			{"1 Apr 2025", "$500"},
-			{"1 May 2025", "$500"},
-			{"1 Jun 2025", "$500"},
-			{"1 Jul 2025", "$500"},
-		},
-		LateFee:         "$50",
-		BounceFee:       "$75",
-		LenderAction:    "contact a debt collection service",
-		TermsConditions: "No refunds after work commencement. Disputes subject to California jurisdiction.",
+package pdf
+
+import (
+	"github.com/johnfercher/maroto/v2"
+	"github.com/johnfercher/maroto/v2/pkg/components/col"
+	"github.com/johnfercher/maroto/v2/pkg/components/line"
+	"github.com/johnfercher/maroto/v2/pkg/components/row"
+	"github.com/johnfercher/maroto/v2/pkg/components/text"
+	"github.com/johnfercher/maroto/v2/pkg/config"
+	"github.com/johnfercher/maroto/v2/pkg/consts/align"
+	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
+	"github.com/johnfercher/maroto/v2/pkg/props"
+)
+
+// ─── Data ──────────────────────────────────────────────────────────────────────
+
+type GPayBadgeData struct {
+	BusinessName string
+	PhoneNumber  string
+	UPIHandle    string // e.g. "12345 67890@yhh"
+	// QRCodePath is the path to the QR code image file (PNG/JPG).
+	// If empty, a placeholder box is drawn instead.
+	QRCodePath string
+}
+
+// ─── GenerateGPayBadge ────────────────────────────────────────────────────────
+// Produces a portrait card-sized PDF (85mm x 135mm) resembling the GPay badge.
+
+func GenerateGPayBadge(path string, d GPayBadgeData) error {
+	bgBlack  := props.Color{Red: 0, Green: 0, Blue: 0}
+	gpayBlue := props.Color{Red: 66, Green: 133, Blue: 244}
+	gpayGray := props.Color{Red: 120, Green: 120, Blue: 120}
+	white    := props.Color{Red: 255, Green: 255, Blue: 255}
+
+	// Custom card size: 85mm wide x 135mm tall
+	cfg := config.NewBuilder().
+		WithDimensions(85, 135).
+		WithLeftMargin(6).WithRightMargin(6).
+		WithTopMargin(8).WithBottomMargin(8).
+		Build()
+
+	m := maroto.New(cfg)
+
+	// ── GPay logo text ────────────────────────────────────────────────────────
+	m.AddRows(
+		row.New(14).Add(
+			col.New(12).Add(
+				// "G" in blue
+				text.New("G", props.Text{
+					Size: 20, Style: fontstyle.Bold,
+					Color: &gpayBlue, Align: align.Center,
+				}),
+			),
+		),
+	)
+	m.AddRows(
+		row.New(8).Add(
+			col.New(12).Add(text.New("Pay", props.Text{
+				Size: 14, Style: fontstyle.Bold,
+				Color: &bgBlack, Align: align.Center,
+			})),
+		),
+	)
+	m.AddRows(
+		row.New(6).Add(
+			col.New(12).Add(text.New("LogoHere", props.Text{
+				Size: 7, Color: &gpayGray, Align: align.Center,
+			})),
+		),
+	)
+
+	m.AddRows(row.New(3))
+
+	// ── "accepted here" ───────────────────────────────────────────────────────
+	m.AddRows(
+		row.New(7).Add(
+			col.New(12).Add(text.New("accepted here", props.Text{
+				Size: 9, Color: &gpayGray, Align: align.Center,
+			})),
+		),
+	)
+
+	m.AddRows(row.New(4))
+	m.AddRows(row.New(2).Add(col.New(12).Add(line.New(props.Line{Color: &gpayGray, Thickness: 0.3}))))
+	m.AddRows(row.New(4))
+
+	// ── Business name & phone ─────────────────────────────────────────────────
+	m.AddRows(
+		row.New(9).Add(
+			col.New(12).Add(text.New(d.BusinessName, props.Text{
+				Size: 11, Style: fontstyle.Bold,
+				Color: &bgBlack, Align: align.Center,
+			})),
+		),
+	)
+	m.AddRows(
+		row.New(7).Add(
+			col.New(12).Add(text.New(d.PhoneNumber, props.Text{
+				Size: 9, Color: &gpayGray, Align: align.Center,
+			})),
+		),
+	)
+
+	m.AddRows(row.New(4))
+
+	// ── QR Code placeholder (replace with image.NewFromFileCol when you have the file) ──
+	qrSize := 32.0
+	if d.QRCodePath != "" {
+		// If you have the QR image, use:
+		// import "github.com/johnfercher/maroto/v2/pkg/components/image"
+		// m.AddRows(row.New(qrSize).Add(
+		//     col.New(2),
+		//     col.New(8).Add(image.NewFromFileCol(8, d.QRCodePath, props.Rect{Center: true, Percent: 100})),
+		//     col.New(2),
+		// ))
+		_ = d.QRCodePath
 	}
-	if err := pdf.GenerateFullAgreement("full_agreement.pdf", fullAgreement); err != nil {
-		log.Fatal("full agreement:", err)
+	// Placeholder box representing the QR code area
+	qrBg := props.Color{Red: 230, Green: 230, Blue: 230}
+	m.AddRows(
+		row.New(qrSize).WithStyle(&props.Cell{BackgroundColor: &qrBg}).Add(
+			col.New(2),
+			col.New(8).Add(text.New("[ QR CODE ]", props.Text{
+				Size: 9, Color: &gpayGray, Align: align.Center,
+			})),
+			col.New(2),
+		),
+	)
+
+	m.AddRows(row.New(4))
+
+	// ── UPI handle ───────────────────────────────────────────────────────────
+	m.AddRows(
+		row.New(7).Add(
+			col.New(12).Add(text.New(d.UPIHandle, props.Text{
+				Size: 9, Style: fontstyle.Bold,
+				Color: &bgBlack, Align: align.Center,
+			})),
+		),
+	)
+
+	// Bottom accent bar
+	m.AddRows(row.New(3))
+	m.AddRows(row.New(3).WithStyle(&props.Cell{BackgroundColor: &gpayBlue}).Add(col.New(12)))
+
+	_ = white // available for further styling
+
+	doc, err := m.Generate()
+	if err != nil {
+		return err
 	}
-	fmt.Println("✅ full_agreement.pdf generated (p1=Services Agreement, p2=Payment Plan)")
- 
+	return doc.Save(path)
+}
