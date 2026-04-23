@@ -1,36 +1,42 @@
-package main
+package pdf
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/johnfercher/maroto/v2"
 	"github.com/johnfercher/maroto/v2/pkg/components/col"
+	"github.com/johnfercher/maroto/v2/pkg/components/line"
 	"github.com/johnfercher/maroto/v2/pkg/components/row"
 	"github.com/johnfercher/maroto/v2/pkg/components/text"
 	"github.com/johnfercher/maroto/v2/pkg/config"
 	"github.com/johnfercher/maroto/v2/pkg/consts/align"
+	"github.com/johnfercher/maroto/v2/pkg/consts/color"
 	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-func main() {
+// GenerateInvoice creates PDF
+func GenerateInvoice(path string) error {
 
-	// Config
+	primary := color.Color{Red: 0, Green: 0, Blue: 0}
+
 	cfg := config.NewBuilder().
 		WithPageSize("A4").
 		WithLeftMargin(20).
 		WithRightMargin(20).
+		WithTopMargin(20).
+		WithBottomMargin(20).
 		Build()
 
-	// Create Maroto instance
 	m := maroto.New(cfg)
 
-	// Add a row
+	// ─── TITLE ─────────────────────────────────────
 	m.AddRows(
 		row.New(20).Add(
 			col.New(12).Add(
 				text.New("INVOICE", props.Text{
-					Size:  20,
+					Size:  22,
 					Style: fontstyle.Bold,
 					Align: align.Center,
 				}),
@@ -38,27 +44,84 @@ func main() {
 		),
 	)
 
-	// Another row
+	// Divider
 	m.AddRows(
-		row.New(10).Add(
-			col.New(6).Add(text.New("Invoice #: 12345")),
-			col.New(6).Add(text.New("Date: Today", props.Text{
-				Align: align.Right,
-			})),
+		row.New(5).Add(
+			col.New(12).Add(
+				line.New(props.Line{Color: &primary, Thickness: 0.5}),
+			),
 		),
 	)
 
-	// Generate PDF
+	// ─── INFO SECTION ──────────────────────────────
+	m.AddRows(
+		row.New(10).Add(
+			col.New(6).Add(
+				text.New("Invoice #: 123456"),
+			),
+			col.New(6).Add(
+				text.New("Date: "+time.Now().Format("02 Jan 2006"), props.Text{
+					Align: align.Right,
+				}),
+			),
+		),
+	)
+
+	// ─── TABLE HEADER ──────────────────────────────
+	m.AddRows(
+		row.New(10).Add(
+			col.New(6).Add(text.New("Item", props.Text{Style: fontstyle.Bold})),
+			col.New(2).Add(text.New("Qty", props.Text{Style: fontstyle.Bold, Align: align.Center})),
+			col.New(2).Add(text.New("Price", props.Text{Style: fontstyle.Bold, Align: align.Right})),
+			col.New(2).Add(text.New("Total", props.Text{Style: fontstyle.Bold, Align: align.Right})),
+		),
+	)
+
+	// ─── ITEMS ─────────────────────────────────────
+	items := [][]string{
+		{"Service 1", "1", "100", "100"},
+		{"Service 2", "1", "150", "150"},
+		{"Service 3", "1", "200", "200"},
+	}
+
+	for _, item := range items {
+		m.AddRows(
+			row.New(8).Add(
+				col.New(6).Add(text.New(item[0])),
+				col.New(2).Add(text.New(item[1], props.Text{Align: align.Center})),
+				col.New(2).Add(text.New("$"+item[2], props.Text{Align: align.Right})),
+				col.New(2).Add(text.New("$"+item[3], props.Text{Align: align.Right})),
+			),
+		)
+	}
+
+	// ─── TOTAL ─────────────────────────────────────
+	m.AddRows(
+		row.New(10).Add(
+			col.New(10),
+			col.New(2).Add(
+				text.New("Total: $450", props.Text{
+					Align: align.Right,
+					Style: fontstyle.Bold,
+				}),
+			),
+		),
+	)
+
+	// ─── NOTES ─────────────────────────────────────
+	m.AddRows(
+		row.New(15).Add(
+			col.New(12).Add(
+				text.New("Payment due within 15 days."),
+			),
+		),
+	)
+
+	// Generate
 	doc, err := m.Generate()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	// Save
-	err = doc.Save("output.pdf")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("✅ PDF generated!")
+	return doc.Save(path)
 }
