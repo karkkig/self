@@ -1,7 +1,6 @@
 package pdf
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/johnfercher/maroto/v2"
@@ -11,15 +10,15 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/components/text"
 	"github.com/johnfercher/maroto/v2/pkg/config"
 	"github.com/johnfercher/maroto/v2/pkg/consts/align"
-	"github.com/johnfercher/maroto/v2/pkg/consts/color"
 	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
+	"github.com/johnfercher/maroto/v2/pkg/core"
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-// GenerateInvoice creates PDF
+// GenerateInvoice creates a PDF invoice at the given file path.
 func GenerateInvoice(path string) error {
-
-	primary := color.Color{Red: 0, Green: 0, Blue: 0}
+	// Use props.Color directly — no separate consts/color package needed
+	black := props.Color{Red: 0, Green: 0, Blue: 0}
 
 	cfg := config.NewBuilder().
 		WithPageSize("A4").
@@ -31,7 +30,7 @@ func GenerateInvoice(path string) error {
 
 	m := maroto.New(cfg)
 
-	// ─── TITLE ─────────────────────────────────────
+	// TITLE
 	m.AddRows(
 		row.New(20).Add(
 			col.New(12).Add(
@@ -44,16 +43,16 @@ func GenerateInvoice(path string) error {
 		),
 	)
 
-	// Divider
+	// DIVIDER
 	m.AddRows(
 		row.New(5).Add(
 			col.New(12).Add(
-				line.New(props.Line{Color: &primary, Thickness: 0.5}),
+				line.New(props.Line{Color: &black, Thickness: 0.5}),
 			),
 		),
 	)
 
-	// ─── INFO SECTION ──────────────────────────────
+	// INFO SECTION
 	m.AddRows(
 		row.New(10).Add(
 			col.New(6).Add(
@@ -67,7 +66,7 @@ func GenerateInvoice(path string) error {
 		),
 	)
 
-	// ─── TABLE HEADER ──────────────────────────────
+	// TABLE HEADER
 	m.AddRows(
 		row.New(10).Add(
 			col.New(6).Add(text.New("Item", props.Text{Style: fontstyle.Bold})),
@@ -77,25 +76,29 @@ func GenerateInvoice(path string) error {
 		),
 	)
 
-	// ─── ITEMS ─────────────────────────────────────
-	items := [][]string{
+	// ITEMS
+	type item struct {
+		name, qty, price, total string
+	}
+	items := []item{
 		{"Service 1", "1", "100", "100"},
 		{"Service 2", "1", "150", "150"},
 		{"Service 3", "1", "200", "200"},
 	}
 
-	for _, item := range items {
-		m.AddRows(
-			row.New(8).Add(
-				col.New(6).Add(text.New(item[0])),
-				col.New(2).Add(text.New(item[1], props.Text{Align: align.Center})),
-				col.New(2).Add(text.New("$"+item[2], props.Text{Align: align.Right})),
-				col.New(2).Add(text.New("$"+item[3], props.Text{Align: align.Right})),
-			),
-		)
+	var itemRows []core.Row
+	for _, it := range items {
+		it := it
+		itemRows = append(itemRows, row.New(8).Add(
+			col.New(6).Add(text.New(it.name)),
+			col.New(2).Add(text.New(it.qty, props.Text{Align: align.Center})),
+			col.New(2).Add(text.New("$"+it.price, props.Text{Align: align.Right})),
+			col.New(2).Add(text.New("$"+it.total, props.Text{Align: align.Right})),
+		))
 	}
+	m.AddRows(itemRows...)
 
-	// ─── TOTAL ─────────────────────────────────────
+	// TOTAL
 	m.AddRows(
 		row.New(10).Add(
 			col.New(10),
@@ -108,7 +111,7 @@ func GenerateInvoice(path string) error {
 		),
 	)
 
-	// ─── NOTES ─────────────────────────────────────
+	// NOTES
 	m.AddRows(
 		row.New(15).Add(
 			col.New(12).Add(
@@ -117,11 +120,9 @@ func GenerateInvoice(path string) error {
 		),
 	)
 
-	// Generate
 	doc, err := m.Generate()
 	if err != nil {
 		return err
 	}
-
 	return doc.Save(path)
 }
