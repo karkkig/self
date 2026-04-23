@@ -1,19 +1,28 @@
-		// Section 3: Payment
-		row.New(8).Add(col.New(12).Add(text.New(
-			"3. Payment. Payment for the Services will be by: (Check on)",
-			props.Text{Size: 9, Color: &black},
-		))),
-		row.New(3),
+// Signature lines
+	sigLine := func(label string) []core.Row {
+		return []core.Row{
+			row.New(10).Add(
+				col.New(8).Add(line.New(props.Line{Color: &gray, Thickness: 0.5})),
+				col.New(1),
+				col.New(3).Add(line.New(props.Line{Color: &gray, Thickness: 0.5})),
+			),
+			row.New(7).Add(
+				col.New(8).Add(text.New("("+label+")", props.Text{Size: 8, Color: &gray})),
+				col.New(1),
+				col.New(3).Add(text.New("(Date)", props.Text{Size: 8, Color: &gray})),
+			),
+			row.New(4),
+		}
+	}
+	p2.Add(sigLine(d.Payer)...)
+	p2.Add(row.New(6))
+	p2.Add(sigLine(d.Payee)...)
 
-		// Payment method checkboxes
-		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Cash", props.Text{Size: 9, Color: &black})), col.New(5).Add(text.New("[ ]  Credit or debit card", props.Text{Size: 9, Color: &black}))),
-		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Personal check", props.Text{Size: 9, Color: &black})), col.New(5).Add(text.New("[ ]  Wire transfer", props.Text{Size: 9, Color: &black}))),
-		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Cashier's check", props.Text{Size: 9, Color: &black})), col.New(5).Add(text.New("[ ]  Other: _______________", props.Text{Size: 9, Color: &black}))),
-		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Money order", props.Text{Size: 9, Color: &black})), col.New(5)),
-	)
+	m.AddPages(p2)
 
-	if d.Notes != "" {
-		p1.Add(
-			row.New(5),
-			row.New(10).Add(col.New(12).Add(text.New(d.Notes, props.Text{Size: 9, Color: &gray}))),
-		)
+	doc, err := m.Generate()
+	if err != nil {
+		return err
+	}
+	return doc.Save(path)
+}
