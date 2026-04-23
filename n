@@ -1,105 +1,19 @@
-func (s *StockService) AddStock(symbol string, name string) error {
+		// Section 3: Payment
+		row.New(8).Add(col.New(12).Add(text.New(
+			"3. Payment. Payment for the Services will be by: (Check on)",
+			props.Text{Size: 9, Color: &black},
+		))),
+		row.New(3),
 
-	url := fmt.Sprintf(
-		"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
-		symbol,
-		s.AlphaKey,
+		// Payment method checkboxes
+		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Cash", props.Text{Size: 9, Color: &black})), col.New(5).Add(text.New("[ ]  Credit or debit card", props.Text{Size: 9, Color: &black}))),
+		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Personal check", props.Text{Size: 9, Color: &black})), col.New(5).Add(text.New("[ ]  Wire transfer", props.Text{Size: 9, Color: &black}))),
+		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Cashier's check", props.Text{Size: 9, Color: &black})), col.New(5).Add(text.New("[ ]  Other: _______________", props.Text{Size: 9, Color: &black}))),
+		row.New(7).Add(col.New(2), col.New(5).Add(text.New("[ ]  Money order", props.Text{Size: 9, Color: &black})), col.New(5)),
 	)
 
-	client := http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	// 🔍 Rate limit check (IMPORTANT)
-	var check map[string]interface{}
-	_ = json.Unmarshal(body, &check)
-
-	if msg, ok := check["Note"]; ok {
-		return fmt.Errorf("alphavantage rate limit: %v", msg)
-	}
-	if msg, ok := check["Information"]; ok {
-		return fmt.Errorf("alphavantage rate limit: %v", msg)
-	}
-
-	// ✅ Correct struct for new API
-	type TimeSeriesResponse struct {
-		TimeSeries map[string]map[string]string `json:"Time Series (Daily)"`
-	}
-
-	var data TimeSeriesResponse
-	if err := json.Unmarshal(body, &data); err != nil {
-		return err
-	}
-
-	if data.TimeSeries == nil {
-		return fmt.Errorf("no time series data for %s", symbol)
-	}
-
-	// 🔹 Save stock first (same as before)
-	stock := &models.Stock{
-		Symbol:    symbol,
-		StockName: name,
-		LastPrice: 0, // temp
-	}
-
-	err = s.Repo.Save(stock)
-	if err != nil {
-		return err
-	}
-
-	savedStock, err := s.Repo.GetBySymbol(symbol)
-	if err != nil {
-		return err
-	}
-	stockID := savedStock.ID
-
-	var latestDate time.Time
-	var latestPrice float64
-
-	// 🔥 LOOP → SAVE FULL HISTORY
-	for dateStr, values := range data.TimeSeries {
-
-		date, err := time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			continue
-		}
-
-		price, err := strconv.ParseFloat(values["4. close"], 64)
-		if err != nil {
-			continue
-		}
-
-		// ✅ Save each day's history
-		err = s.Repo.UpdateHistory(stockID, price, date)
-		if err != nil {
-			fmt.Println("History insert error:", err)
-			continue
-		}
-
-		// Track latest price
-		if date.After(latestDate) {
-			latestDate = date
-			latestPrice = price
-		}
-	}
-
-	if latestPrice == 0 {
-		return fmt.Errorf("failed to extract latest price")
-	}
-
-	// 🔄 Update latest price (same repo function)
-	err = s.Repo.UpdateStockPrice(stockID, latestPrice)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
+	if d.Notes != "" {
+		p1.Add(
+			row.New(5),
+			row.New(10).Add(col.New(12).Add(text.New(d.Notes, props.Text{Size: 9, Color: &gray}))),
+		)
