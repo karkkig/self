@@ -1,100 +1,100 @@
-package main
+package pdf
 
 import (
-	"context"
-	"fmt"
-	"net/url"
-	"os"
-	"time"
-
-	"github.com/chromedp/chromedp"
-	"github.com/chromedp/cdproto/page"
+	"github.com/johnfercher/maroto/v2/pkg/consts"
+	"github.com/johnfercher/maroto/v2/pkg/pdf"
 )
 
-// Read HTML file
-func readHTML(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
+// Generate Invoice PDF
+func GenerateInvoice(outputPath string) error {
+
+	m := pdf.NewMaroto(consts.Portrait, consts.A4)
+
+	// Title
+	m.Row(20, func() {
+		m.Col(12, func() {
+			m.Text("INVOICE", pdf.TextProp{
+				Top:   8,
+				Style: consts.Bold,
+				Align: consts.Center,
+				Size:  20,
+			})
+		})
+	})
+
+	// Invoice Info
+	m.Row(10, func() {
+		m.Col(6, func() {
+			m.Text("Invoice #: #123456", pdf.TextProp{})
+		})
+		m.Col(6, func() {
+			m.Text("Date: 23-04-2026", pdf.TextProp{
+				Align: consts.Right,
+			})
+		})
+	})
+
+	// Spacer
+	m.Row(5, func() {})
+
+	// Table Header
+	m.Row(10, func() {
+		m.Col(6, func() {
+			m.Text("Item", pdf.TextProp{Style: consts.Bold})
+		})
+		m.Col(2, func() {
+			m.Text("Qty", pdf.TextProp{Style: consts.Bold})
+		})
+		m.Col(2, func() {
+			m.Text("Price", pdf.TextProp{Style: consts.Bold})
+		})
+		m.Col(2, func() {
+			m.Text("Total", pdf.TextProp{Style: consts.Bold})
+		})
+	})
+
+	// Table Rows
+	items := [][]string{
+		{"Service 1", "1", "100", "100"},
+		{"Service 2", "1", "150", "150"},
+		{"Service 3", "1", "200", "200"},
 	}
-	return string(data), nil
-}
 
-// Generate PDF using chromedp
-func generatePDF(html string, output string) error {
-
-	// Create context
-	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	// Add timeout
-	ctx, cancel = context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-
-	var pdfBuf []byte
-
-	// Convert HTML to data URL (MOST RELIABLE METHOD)
-	htmlURL := "data:text/html," + url.PathEscape(html)
-
-	// Run tasks
-	err := chromedp.Run(ctx,
-		chromedp.Navigate(htmlURL),
-		chromedp.Sleep(2*time.Second), // wait for rendering
-
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			buf, _, err := page.PrintToPDF().
-				WithPrintBackground(true).
-				WithPaperWidth(8.27).  // A4 width
-				WithPaperHeight(11.69). // A4 height
-				Do(ctx)
-
-			pdfBuf = buf
-			return err
-		}),
-	)
-
-	if err != nil {
-		return err
+	for _, item := range items {
+		m.Row(8, func() {
+			m.Col(6, func() {
+				m.Text(item[0], pdf.TextProp{})
+			})
+			m.Col(2, func() {
+				m.Text(item[1], pdf.TextProp{})
+			})
+			m.Col(2, func() {
+				m.Text(item[2], pdf.TextProp{})
+			})
+			m.Col(2, func() {
+				m.Text(item[3], pdf.TextProp{})
+			})
+		})
 	}
+
+	// Total Section
+	m.Row(10, func() {
+		m.Col(10, func() {})
+		m.Col(2, func() {
+			m.Text("Total: 450", pdf.TextProp{
+				Style: consts.Bold,
+				Align: consts.Right,
+			})
+		})
+	})
+
+	// Notes
+	m.Row(15, func() {
+		m.Col(12, func() {
+			m.Text("Payment due within 15 days.", pdf.TextProp{})
+		})
+	})
 
 	// Save PDF
-	return os.WriteFile(output, pdfBuf, 0644)
-}
-
-func main() {
-
-	// Create output folder (optional)
-	os.MkdirAll("output", os.ModePerm)
-
-	// Invoice
-	invoiceHTML, err := readHTML("invoice.html")
-	if err != nil {
-		panic(err)
-	}
-	err = generatePDF(invoiceHTML, "output/invoice.pdf")
-	if err != nil {
-		panic(err)
-	}
-
-	// QR
-	qrHTML, err := readHTML("qr.html")
-	if err != nil {
-		panic(err)
-	}
-	err = generatePDF(qrHTML, "output/qr.pdf")
-	if err != nil {
-		panic(err)
-	}
-
-	// Agreement
-	agreementHTML, err := readHTML("agreement.html")
-	if err != nil {
-		panic(err)
-	}
-	err = generatePDF(agreementHTML, "output/agreement.pdf")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("✅ All PDFs generated successfully!")
+	return m.OutputFileAndClose(outputPath)
 }
