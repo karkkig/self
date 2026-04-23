@@ -1,22 +1,22 @@
 package pdf
 
 import (
+	"github.com/johnfercher/maroto/v2/pkg/config"
 	"github.com/johnfercher/maroto/v2/pkg/consts"
 	"github.com/johnfercher/maroto/v2/pkg/core"
 	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/config"
 )
 
-// Generate Invoice PDF
-func GenerateInvoice(outputPath string) error {
+func GenerateInvoice(path string) error {
 
-	// Config
+	// Create config
 	cfg := config.NewBuilder().
 		WithPageSize(consts.A4).
 		WithOrientation(consts.Portrait).
 		Build()
 
-	m := core.New(cfg)
+	// Create Maroto instance
+	m := core.NewMaroto(cfg)
 
 	// Title
 	m.AddRow(20,
@@ -27,7 +27,7 @@ func GenerateInvoice(outputPath string) error {
 		),
 	)
 
-	// Info Row
+	// Invoice Info
 	m.AddRow(10,
 		text.New("Invoice #: #123456"),
 		text.New("Date: 23-04-2026",
@@ -38,7 +38,7 @@ func GenerateInvoice(outputPath string) error {
 	// Spacer
 	m.AddRow(5)
 
-	// Table Header
+	// Header Row
 	m.AddRow(10,
 		text.New("Item", text.WithStyle(consts.Bold)),
 		text.New("Qty", text.WithStyle(consts.Bold)),
@@ -46,7 +46,7 @@ func GenerateInvoice(outputPath string) error {
 		text.New("Total", text.WithStyle(consts.Bold)),
 	)
 
-	// Table Rows
+	// Data Rows
 	items := [][]string{
 		{"Service 1", "1", "100", "100"},
 		{"Service 2", "1", "150", "150"},
@@ -87,5 +87,5 @@ func GenerateInvoice(outputPath string) error {
 		return err
 	}
 
-	return doc.Save(outputPath)
+	return doc.Save(path)
 }
