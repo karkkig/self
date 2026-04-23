@@ -1,87 +1,21 @@
 package pdf
 
 import (
-	"github.com/johnfercher/maroto/v2/pkg/config"
-	"github.com/johnfercher/maroto/v2/pkg/consts"
 	"github.com/johnfercher/maroto/v2/pkg/core"
-	"github.com/johnfercher/maroto/v2/pkg/components/text"
 )
 
+// Generate a very basic PDF
 func GenerateInvoice(path string) error {
 
-	// Create config
-	cfg := config.NewBuilder().
-		WithPageSize(consts.A4).
-		WithOrientation(consts.Portrait).
-		Build()
+	// Create empty Maroto instance (core only)
+	m := core.NewMaroto(nil)
 
-	// Create Maroto instance
-	m := core.NewMaroto(cfg)
+	// Add simple rows (no styling, no helpers)
+	m.AddRow(20)
+	m.AddRow(10)
+	m.AddRow(10)
 
-	// Title
-	m.AddRow(20,
-		text.New("INVOICE",
-			text.WithAlign(consts.Center),
-			text.WithStyle(consts.Bold),
-			text.WithSize(20),
-		),
-	)
-
-	// Invoice Info
-	m.AddRow(10,
-		text.New("Invoice #: #123456"),
-		text.New("Date: 23-04-2026",
-			text.WithAlign(consts.Right),
-		),
-	)
-
-	// Spacer
-	m.AddRow(5)
-
-	// Header Row
-	m.AddRow(10,
-		text.New("Item", text.WithStyle(consts.Bold)),
-		text.New("Qty", text.WithStyle(consts.Bold)),
-		text.New("Price", text.WithStyle(consts.Bold)),
-		text.New("Total", text.WithStyle(consts.Bold)),
-	)
-
-	// Data Rows
-	items := [][]string{
-		{"Service 1", "1", "100", "100"},
-		{"Service 2", "1", "150", "150"},
-		{"Service 3", "1", "200", "200"},
-	}
-
-	for _, item := range items {
-		m.AddRow(8,
-			text.New(item[0]),
-			text.New(item[1]),
-			text.New(item[2]),
-			text.New(item[3]),
-		)
-	}
-
-	// Spacer
-	m.AddRow(5)
-
-	// Total
-	m.AddRow(10,
-		text.New(""),
-		text.New(""),
-		text.New(""),
-		text.New("Total: 450",
-			text.WithAlign(consts.Right),
-			text.WithStyle(consts.Bold),
-		),
-	)
-
-	// Notes
-	m.AddRow(15,
-		text.New("Payment due within 15 days."),
-	)
-
-	// Generate PDF
+	// Generate document
 	doc, err := m.Generate()
 	if err != nil {
 		return err
