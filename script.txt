@@ -1,99 +1,64 @@
-package pdf
+package main
 
 import (
-	"github.com/johnfercher/maroto/pkg/consts"
-	"github.com/johnfercher/maroto/pkg/pdf"
+	"fmt"
+
+	"github.com/johnfercher/maroto/v2"
+	"github.com/johnfercher/maroto/v2/pkg/components/col"
+	"github.com/johnfercher/maroto/v2/pkg/components/row"
+	"github.com/johnfercher/maroto/v2/pkg/components/text"
+	"github.com/johnfercher/maroto/v2/pkg/config"
+	"github.com/johnfercher/maroto/v2/pkg/consts/align"
+	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
+	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-// GenerateInvoice creates a simple invoice PDF
-func GenerateInvoice(path string) error {
+func main() {
 
-	m := pdf.NewMaroto(consts.Portrait, consts.A4)
+	// Config
+	cfg := config.NewBuilder().
+		WithPageSize("A4").
+		WithLeftMargin(20).
+		WithRightMargin(20).
+		Build()
 
-	// Title
-	m.Row(20, func() {
-		m.Col(12, func() {
-			m.Text("INVOICE", pdf.TextProp{
-				Top:   8,
-				Style: consts.Bold,
-				Align: consts.Center,
-				Size:  20,
-			})
-		})
-	})
+	// Create Maroto instance
+	m := maroto.New(cfg)
 
-	// Info
-	m.Row(10, func() {
-		m.Col(6, func() {
-			m.Text("Invoice #: #123456", pdf.TextProp{})
-		})
-		m.Col(6, func() {
-			m.Text("Date: 23-04-2026", pdf.TextProp{
-				Align: consts.Right,
-			})
-		})
-	})
+	// Add a row
+	m.AddRows(
+		row.New(20).Add(
+			col.New(12).Add(
+				text.New("INVOICE", props.Text{
+					Size:  20,
+					Style: fontstyle.Bold,
+					Align: align.Center,
+				}),
+			),
+		),
+	)
 
-	// Spacer
-	m.Row(5, func() {})
+	// Another row
+	m.AddRows(
+		row.New(10).Add(
+			col.New(6).Add(text.New("Invoice #: 12345")),
+			col.New(6).Add(text.New("Date: Today", props.Text{
+				Align: align.Right,
+			})),
+		),
+	)
 
-	// Header
-	m.Row(10, func() {
-		m.Col(6, func() {
-			m.Text("Item", pdf.TextProp{Style: consts.Bold})
-		})
-		m.Col(2, func() {
-			m.Text("Qty", pdf.TextProp{Style: consts.Bold})
-		})
-		m.Col(2, func() {
-			m.Text("Price", pdf.TextProp{Style: consts.Bold})
-		})
-		m.Col(2, func() {
-			m.Text("Total", pdf.TextProp{Style: consts.Bold})
-		})
-	})
-
-	// Rows
-	items := [][]string{
-		{"Service 1", "1", "100", "100"},
-		{"Service 2", "1", "150", "150"},
-		{"Service 3", "1", "200", "200"},
+	// Generate PDF
+	doc, err := m.Generate()
+	if err != nil {
+		panic(err)
 	}
 
-	for _, item := range items {
-		m.Row(8, func() {
-			m.Col(6, func() {
-				m.Text(item[0], pdf.TextProp{})
-			})
-			m.Col(2, func() {
-				m.Text(item[1], pdf.TextProp{})
-			})
-			m.Col(2, func() {
-				m.Text(item[2], pdf.TextProp{})
-			})
-			m.Col(2, func() {
-				m.Text(item[3], pdf.TextProp{})
-			})
-		})
+	// Save
+	err = doc.Save("output.pdf")
+	if err != nil {
+		panic(err)
 	}
 
-	// Total
-	m.Row(10, func() {
-		m.Col(10, func() {})
-		m.Col(2, func() {
-			m.Text("Total: 450", pdf.TextProp{
-				Style: consts.Bold,
-				Align: consts.Right,
-			})
-		})
-	})
-
-	// Notes
-	m.Row(15, func() {
-		m.Col(12, func() {
-			m.Text("Payment due within 15 days.", pdf.TextProp{})
-		})
-	})
-
-	return m.OutputFileAndClose(path)
+	fmt.Println("✅ PDF generated!")
 }
