@@ -4,7 +4,6 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/consts"
 	"github.com/johnfercher/maroto/v2/pkg/core"
 	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/components/table"
 	"github.com/johnfercher/maroto/v2/pkg/config"
 )
 
@@ -27,29 +26,47 @@ func GenerateInvoice(outputPath string) error {
 				WithSize(20)),
 	)
 
-	// Info Row
+	// Info
 	m.AddRow(10,
 		text.NewCol(6, "Invoice #: #123456"),
 		text.NewCol(6, "Date: 23-04-2026",
 			text.NewProps().WithAlign(consts.Right)),
 	)
 
-	// Table
-	headers := []string{"Item", "Qty", "Price", "Total"}
+	// Spacer
+	m.AddRow(5)
 
-	rows := [][]string{
+	// Table Header
+	m.AddRow(10,
+		text.NewCol(6, "Item", text.NewProps().WithStyle(consts.Bold)),
+		text.NewCol(2, "Qty", text.NewProps().WithStyle(consts.Bold)),
+		text.NewCol(2, "Price", text.NewProps().WithStyle(consts.Bold)),
+		text.NewCol(2, "Total", text.NewProps().WithStyle(consts.Bold)),
+	)
+
+	// Table Rows
+	items := [][]string{
 		{"Service 1", "1", "100", "100"},
 		{"Service 2", "1", "150", "150"},
 		{"Service 3", "1", "200", "200"},
 	}
 
-	m.AddRow(10,
-		table.NewCol(12, headers, rows),
-	)
+	for _, item := range items {
+		m.AddRow(8,
+			text.NewCol(6, item[0]),
+			text.NewCol(2, item[1]),
+			text.NewCol(2, item[2]),
+			text.NewCol(2, item[3]),
+		)
+	}
+
+	// Spacer
+	m.AddRow(5)
 
 	// Total
 	m.AddRow(10,
-		text.NewCol(12, "Total: 450",
+		text.NewCol(10, ""),
+		text.NewCol(2, "Total: 450",
 			text.NewProps().
 				WithAlign(consts.Right).
 				WithStyle(consts.Bold)),
@@ -60,7 +77,7 @@ func GenerateInvoice(outputPath string) error {
 		text.NewCol(12, "Payment due within 15 days."),
 	)
 
-	// Generate file
+	// Generate PDF
 	doc, err := m.Generate()
 	if err != nil {
 		return err
