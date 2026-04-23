@@ -1,12 +1,12 @@
-ackage pdf
+package pdf
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/johnfercher/maroto/v2"
 	"github.com/johnfercher/maroto/v2/pkg/components/col"
 	"github.com/johnfercher/maroto/v2/pkg/components/line"
+	"github.com/johnfercher/maroto/v2/pkg/components/page"
 	"github.com/johnfercher/maroto/v2/pkg/components/row"
 	"github.com/johnfercher/maroto/v2/pkg/components/text"
 	"github.com/johnfercher/maroto/v2/pkg/config"
@@ -17,242 +17,319 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-// ─── Data types ────────────────────────────────────────────────────────────────
+// ─── Shared types ──────────────────────────────────────────────────────────────
 
-type InvoiceData struct {
-	Number        string
-	Date          time.Time
-	Provider      PartyInfo
-	Client        PartyInfo
-	Items         []InvoiceItem
-	TaxRate       float64
-	Notes         string
-	PaymentMethod PaymentInfo
-	PreparedBy    PreparedByInfo
+type ServiceItem struct {
+	Description     string
+	NumProjects     string
+	PricePerProject string
 }
 
-type PartyInfo struct {
-	Name    string
-	Address string
-	City    string
-	Phone   string
-	Email   string
+type PaymentEntry struct {
+	Date   string
+	Amount string
 }
 
-type InvoiceItem struct {
-	Description string
-	UnitPrice   float64
-	Qty         int
+type FullAgreementData struct {
+	// Page 1 — Services Agreement
+	State           string
+	Day             string
+	Month           string
+	Year            string
+	ProviderName    string
+	ProviderAddress string
+	BuyerName       string
+	BuyerAddress    string
+	Services        []ServiceItem
+	PurchasePrice   string
+	Notes           string
+
+	// Page 2 — Payment Plan
+	Payer           string
+	Payee           string
+	Product         string
+	AmountPerPeriod string
+	Interval        string
+	TotalAmount     string
+	Payments        []PaymentEntry
+	LateFee         string
+	BounceFee       string
+	LenderAction    string
+	TermsConditions string
 }
 
-func (i InvoiceItem) Amount() float64 { return i.UnitPrice * float64(i.Qty) }
-
-type PaymentInfo struct {
-	Bank          string
-	AccountName   string
-	AccountNumber string
-}
-
-type PreparedByInfo struct {
-	Name  string
-	Title string
-}
-
-func (d InvoiceData) SubTotal() float64 {
-	var s float64
-	for _, it := range d.Items {
-		s += it.Amount()
-	}
-	return s
-}
-func (d InvoiceData) Tax() float64   { return d.SubTotal() * d.TaxRate }
-func (d InvoiceData) Total() float64 { return d.SubTotal() + d.Tax() }
-
-// ─── Colors ────────────────────────────────────────────────────────────────────
+// ─── Shared colors ─────────────────────────────────────────────────────────────
 
 var (
-	invBlack    = props.Color{Red: 20, Green: 20, Blue: 20}
-	invWhite    = props.Color{Red: 255, Green: 255, Blue: 255}
-	invDarkGray = props.Color{Red: 80, Green: 80, Blue: 80}
-	invLightGray = props.Color{Red: 245, Green: 245, Blue: 245}
-	invBorder   = props.Color{Red: 180, Green: 180, Blue: 180}
-	invTotalBg  = props.Color{Red: 30, Green: 30, Blue: 30}
-	invHeaderBg = props.Color{Red: 50, Green: 50, Blue: 50}
+	agBlack     = props.Color{Red: 20, Green: 20, Blue: 20}
+	agGray      = props.Color{Red: 110, Green: 110, Blue: 110}
+	agLightGray = props.Color{Red: 230, Green: 230, Blue: 230}
+	agWhite     = props.Color{Red: 255, Green: 255, Blue: 255}
+	agBorder    = props.Color{Red: 160, Green: 160, Blue: 160}
+	agHeaderBg  = props.Color{Red: 50, Green: 50, Blue: 50}
 )
 
-// ─── Table cell styles ─────────────────────────────────────────────────────────
+// ─── Cell style helpers ────────────────────────────────────────────────────────
 
-// full border on every cell
-func cellBorder(bg *props.Color) *props.Cell {
+func agHeaderCell() *props.Cell {
+	return &props.Cell{
+		BackgroundColor: &agHeaderBg,
+		BorderColor:     &agBorder,
+		BorderType:      border.Full,
+		BorderThickness: 0.3,
+	}
+}
+
+func agDataCell(bg *props.Color) *props.Cell {
 	return &props.Cell{
 		BackgroundColor: bg,
-		BorderColor:     &invBorder,
+		BorderColor:     &agBorder,
 		BorderType:      border.Full,
 		BorderThickness: 0.3,
 	}
 }
 
-// header cell: dark bg, full border
-func headerCell() *props.Cell {
-	return &props.Cell{
-		BackgroundColor: &invHeaderBg,
-		BorderColor:     &invBorder,
-		BorderType:      border.Full,
-		BorderThickness: 0.3,
-	}
-}
+// ─── GenerateFullAgreement ────────────────────────────────────────────────────
 
-// totals table cell: right-side only (cleaner look)
-func totalsCell(bg *props.Color) *props.Cell {
-	return &props.Cell{
-		BackgroundColor: bg,
-		BorderColor:     &invBorder,
-		BorderType:      border.Full,
-		BorderThickness: 0.3,
-	}
-}
-
-// ─── GenerateInvoice ───────────────────────────────────────────────────────────
-
-func GenerateInvoice(path string, d InvoiceData) error {
+func GenerateFullAgreement(path string, d FullAgreementData) error {
 	cfg := config.NewBuilder().
 		WithPageSize("A4").
-		WithLeftMargin(15).WithRightMargin(15).
-		WithTopMargin(15).WithBottomMargin(15).
+		WithLeftMargin(20).WithRightMargin(20).
+		WithTopMargin(20).WithBottomMargin(20).
 		Build()
 
 	m := maroto.New(cfg)
 
-	// ── INVOICE title ─────────────────────────────────────────────────────────
-	m.AddRows(
-		row.New(18).Add(
-			col.New(6).Add(text.New("INVOICE", props.Text{
-				Size: 28, Style: fontstyle.Bold, Color: &invBlack,
-			})),
-			col.New(6).Add(text.New("STUDIO SHODWE", props.Text{
-				Size: 10, Style: fontstyle.Bold, Color: &invDarkGray, Align: align.Right,
-			})),
-		),
-	)
+	// ══════════════════════════════════════════════════════════════════════════
+	// PAGE 1 — SERVICES AGREEMENT
+	// ══════════════════════════════════════════════════════════════════════════
+	p1 := page.New()
 
-	m.AddRows(
-		row.New(6).Add(col.New(12).Add(text.New(
-			"Invoice Number: #"+d.Number+"     Invoice Date: "+d.Date.Format("02/01/2006"),
-			props.Text{Size: 8, Color: &invDarkGray},
+	p1.Add(
+		// State
+		row.New(8).Add(col.New(12).Add(text.New(
+			"State of "+d.State+"  ___________________",
+			props.Text{Size: 9, Color: &agGray},
 		))),
+
+		// Title
+		row.New(14).Add(col.New(12).Add(text.New(
+			"SERVICES AGREEMENT",
+			props.Text{Size: 18, Style: fontstyle.Bold, Align: align.Center, Color: &agBlack},
+		))),
+
+		// Double divider
+		row.New(2).Add(col.New(12).Add(line.New(props.Line{Color: &agBlack, Thickness: 1.2}))),
+		row.New(2).Add(col.New(12).Add(line.New(props.Line{Color: &agBlack, Thickness: 0.3}))),
+		row.New(5),
+
+		// Intro
+		row.New(12).Add(col.New(12).Add(text.New(
+			fmt.Sprintf(`This Services Agreement (this "Agreement") is entered into as of the %s day of %s, 20%s, by and among/between:`,
+				d.Day, d.Month, d.Year),
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
+
+		// Service Provider
+		row.New(7).Add(col.New(2).Add(text.New("Service Provider(s):", props.Text{Size: 9, Style: fontstyle.Bold, Color: &agBlack})),
+			col.New(10).Add(text.New(d.ProviderName, props.Text{Size: 9, Color: &agBlack}))),
+		row.New(6).Add(col.New(2), col.New(10).Add(text.New(
+			d.ProviderAddress+`  (collectively "Service Provider") and`,
+			props.Text{Size: 9, Color: &agGray},
+		))),
+		row.New(4),
+
+		// Buyer
+		row.New(7).Add(col.New(2).Add(text.New("Buyer(s):", props.Text{Size: 9, Style: fontstyle.Bold, Color: &agBlack})),
+			col.New(10).Add(text.New(d.BuyerName, props.Text{Size: 9, Color: &agBlack}))),
+		row.New(6).Add(col.New(2), col.New(10).Add(text.New(
+			d.BuyerAddress+`  (collectively "Buyer").`,
+			props.Text{Size: 9, Color: &agGray},
+		))),
+		row.New(4),
+
+		// Party clause
+		row.New(10).Add(col.New(12).Add(text.New(
+			`Each Service Provider and Buyer may be referred to in this Agreement individually as a "Party" and collectively as the "Parties."`,
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
+
+		// Section 1 header
+		row.New(10).Add(col.New(12).Add(text.New(
+			"1. Services. Service Provider agrees to provide and Buyer agrees to purchase the following services for the specific projects described below:",
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(3),
 	)
 
-	m.AddRows(row.New(5))
-
-	// ── From / Bill To ────────────────────────────────────────────────────────
-	m.AddRows(
-		row.New(6).Add(
-			col.New(6).Add(text.New(d.Provider.Name, props.Text{Size: 9, Style: fontstyle.Bold, Color: &invBlack})),
-			col.New(6).Add(text.New("BILL TO", props.Text{Size: 9, Style: fontstyle.Bold, Color: &invBlack})),
-		),
-		row.New(5).Add(
-			col.New(6).Add(text.New(d.Provider.Address+", "+d.Provider.City, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(6).Add(text.New(d.Client.Name, props.Text{Size: 8, Color: &invDarkGray})),
-		),
-		row.New(5).Add(
-			col.New(6).Add(text.New(d.Provider.Phone, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(6).Add(text.New(d.Client.Address+", "+d.Client.City, props.Text{Size: 8, Color: &invDarkGray})),
-		),
-		row.New(5).Add(
-			col.New(6).Add(text.New(d.Provider.Email, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(6).Add(text.New(d.Client.Phone, props.Text{Size: 8, Color: &invDarkGray})),
-		),
-		row.New(5).Add(
-			col.New(6),
-			col.New(6).Add(text.New(d.Client.Email, props.Text{Size: 8, Color: &invDarkGray})),
+	// ── Services table ────────────────────────────────────────────────────────
+	p1.Add(
+		row.New(10).Add(
+			col.New(7).WithStyle(agHeaderCell()).Add(text.New("Description of Services",
+				props.Text{Size: 9, Style: fontstyle.Bold, Align: align.Center, Color: &agWhite})),
+			col.New(3).WithStyle(agHeaderCell()).Add(text.New("Number of Projects",
+				props.Text{Size: 9, Style: fontstyle.Bold, Align: align.Center, Color: &agWhite})),
+			col.New(2).WithStyle(agHeaderCell()).Add(text.New("Price per Project",
+				props.Text{Size: 9, Style: fontstyle.Bold, Align: align.Center, Color: &agWhite})),
 		),
 	)
 
-	m.AddRows(row.New(6))
-
-	// ── Items Table ───────────────────────────────────────────────────────────
-	// Header row
-	m.AddRows(
-		row.New(9).Add(
-			col.New(6).WithStyle(headerCell()).Add(text.New("Item & Description", props.Text{Size: 9, Style: fontstyle.Bold, Color: &invWhite})),
-			col.New(2).WithStyle(headerCell()).Add(text.New("Unit Price", props.Text{Size: 9, Style: fontstyle.Bold, Color: &invWhite, Align: align.Right})),
-			col.New(2).WithStyle(headerCell()).Add(text.New("Qty", props.Text{Size: 9, Style: fontstyle.Bold, Color: &invWhite, Align: align.Center})),
-			col.New(2).WithStyle(headerCell()).Add(text.New("Amount", props.Text{Size: 9, Style: fontstyle.Bold, Color: &invWhite, Align: align.Right})),
-		),
-	)
-
-	// Data rows
-	var itemRows []core.Row
-	for i, it := range d.Items {
-		it := it
-		bg := &invWhite
+	var svcRows []core.Row
+	for i, svc := range d.Services {
+		svc := svc
+		bg := &agWhite
 		if i%2 != 0 {
-			bg = &invLightGray
+			bg = &agLightGray
 		}
-		itemRows = append(itemRows, row.New(9).Add(
-			col.New(6).WithStyle(cellBorder(bg)).Add(text.New(it.Description, props.Text{Size: 8, Color: &invBlack})),
-			col.New(2).WithStyle(cellBorder(bg)).Add(text.New(fmt.Sprintf("$%.2f", it.UnitPrice), props.Text{Size: 8, Color: &invBlack, Align: align.Right})),
-			col.New(2).WithStyle(cellBorder(bg)).Add(text.New(fmt.Sprintf("%d", it.Qty), props.Text{Size: 8, Color: &invBlack, Align: align.Center})),
-			col.New(2).WithStyle(cellBorder(bg)).Add(text.New(fmt.Sprintf("$%.2f", it.Amount()), props.Text{Size: 8, Color: &invBlack, Align: align.Right})),
+		svcRows = append(svcRows, row.New(8).Add(
+			col.New(7).WithStyle(agDataCell(bg)).Add(text.New(svc.Description,
+				props.Text{Size: 8, Color: &agBlack})),
+			col.New(3).WithStyle(agDataCell(bg)).Add(text.New(svc.NumProjects,
+				props.Text{Size: 8, Align: align.Center, Color: &agBlack})),
+			col.New(2).WithStyle(agDataCell(bg)).Add(text.New("$"+svc.PricePerProject,
+				props.Text{Size: 8, Align: align.Right, Color: &agBlack})),
 		))
 	}
-	m.AddRows(itemRows...)
+	p1.Add(svcRows...)
 
-	m.AddRows(row.New(6))
+	p1.Add(
+		row.New(5),
 
-	// ── Notes + Totals ────────────────────────────────────────────────────────
-	taxLabel := fmt.Sprintf("Tax (%.0f%%)", d.TaxRate*100)
+		// Section 2
+		row.New(12).Add(col.New(12).Add(text.New(
+			"2. Purchase Price. Buyer will pay to Service Provider and for all obligations specified in this Agreement, if any, as the full and complete purchase price, the sum of $"+d.PurchasePrice+".",
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(3),
+		row.New(12).Add(col.New(12).Add(text.New(
+			"Unless otherwise stated, (Check one)  [ ]  Service Provider  [ ]  Buyer shall be responsible for all taxes in connection with the purchase of Services in this Agreement.",
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
 
-	m.AddRows(
-		row.New(7).Add(
-			col.New(6).Add(text.New("NOTES / TERMS:", props.Text{Size: 8, Style: fontstyle.Bold, Color: &invBlack})),
-			col.New(3),
-			col.New(2).WithStyle(totalsCell(&invLightGray)).Add(text.New("Sub-Total", props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(1).WithStyle(totalsCell(&invLightGray)).Add(text.New(fmt.Sprintf("$%.2f", d.SubTotal()), props.Text{Size: 8, Align: align.Right, Color: &invBlack})),
-		),
-		row.New(7).Add(
-			col.New(6).Add(text.New(d.Notes, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(3),
-			col.New(2).WithStyle(totalsCell(&invWhite)).Add(text.New(taxLabel, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(1).WithStyle(totalsCell(&invWhite)).Add(text.New(fmt.Sprintf("$%.2f", d.Tax()), props.Text{Size: 8, Align: align.Right, Color: &invBlack})),
-		),
-		// Total row — dark background
+		// Section 3
+		row.New(8).Add(col.New(12).Add(text.New(
+			"3. Payment. Payment for the Services will be by: (Check one)",
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(3),
+	)
+
+	// ── Payment method checkbox table ─────────────────────────────────────────
+	// 2-column layout with borders
+	type checkboxPair struct{ left, right string }
+	checkboxes := []checkboxPair{
+		{"[ ]  Cash", "[ ]  Credit or debit card"},
+		{"[ ]  Personal check", "[ ]  Wire transfer"},
+		{"[ ]  Cashier's check", "[ ]  Other: _______________"},
+		{"[ ]  Money order", ""},
+	}
+	for _, cb := range checkboxes {
+		cb := cb
+		p1.Add(row.New(8).Add(
+			col.New(6).WithStyle(agDataCell(&agWhite)).Add(text.New(cb.left, props.Text{Size: 9, Color: &agBlack})),
+			col.New(6).WithStyle(agDataCell(&agWhite)).Add(text.New(cb.right, props.Text{Size: 9, Color: &agBlack})),
+		))
+	}
+
+	if d.Notes != "" {
+		p1.Add(
+			row.New(5),
+			row.New(10).Add(col.New(12).Add(text.New(d.Notes, props.Text{Size: 9, Color: &agGray}))),
+		)
+	}
+
+	m.AddPages(p1)
+
+	// ══════════════════════════════════════════════════════════════════════════
+	// PAGE 2 — PAYMENT PLAN
+	// ══════════════════════════════════════════════════════════════════════════
+	p2 := page.New()
+
+	p2.Add(
+		row.New(18).Add(col.New(12).Add(text.New(
+			fmt.Sprintf(`By this contract, %s agrees to make payments to %s, hereafter known as "Lender," by the following schedule in exchange for %s. This payment schedule is enforceable by law, and the methods described below will be used in cases of delinquent payment.`,
+				d.Payer, d.Payee, d.Product),
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
+		row.New(16).Add(col.New(12).Add(text.New(
+			fmt.Sprintf(`By this agreement, it is agreed that a payment of %s will be surrendered to the Lender every %s until the total of the payment required, which is %s, has been delivered. The payment plan will take the following form:`,
+				d.AmountPerPeriod, d.Interval, d.TotalAmount),
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(3),
+	)
+
+	// ── Payment schedule table ────────────────────────────────────────────────
+	p2.Add(
 		row.New(9).Add(
-			col.New(9),
-			col.New(2).WithStyle(&props.Cell{BackgroundColor: &invTotalBg, BorderType: border.Full, BorderColor: &invTotalBg, BorderThickness: 0.3}).Add(
-				text.New("Total", props.Text{Size: 9, Style: fontstyle.Bold, Color: &invWhite}),
-			),
-			col.New(1).WithStyle(&props.Cell{BackgroundColor: &invTotalBg, BorderType: border.Full, BorderColor: &invTotalBg, BorderThickness: 0.3}).Add(
-				text.New(fmt.Sprintf("$%.2f", d.Total()), props.Text{Size: 9, Style: fontstyle.Bold, Color: &invWhite, Align: align.Right}),
-			),
+			col.New(6).WithStyle(agHeaderCell()).Add(text.New("Payment Date",
+				props.Text{Size: 9, Style: fontstyle.Bold, Align: align.Center, Color: &agWhite})),
+			col.New(6).WithStyle(agHeaderCell()).Add(text.New("Amount",
+				props.Text{Size: 9, Style: fontstyle.Bold, Align: align.Center, Color: &agWhite})),
 		),
 	)
 
-	m.AddRows(row.New(10))
+	var pmtRows []core.Row
+	for i, pmt := range d.Payments {
+		pmt := pmt
+		bg := &agWhite
+		if i%2 != 0 {
+			bg = &agLightGray
+		}
+		pmtRows = append(pmtRows, row.New(8).Add(
+			col.New(6).WithStyle(agDataCell(bg)).Add(text.New(pmt.Date,
+				props.Text{Size: 8, Align: align.Center, Color: &agBlack})),
+			col.New(6).WithStyle(agDataCell(bg)).Add(text.New(pmt.Amount,
+				props.Text{Size: 8, Align: align.Center, Color: &agBlack})),
+		))
+	}
+	p2.Add(pmtRows...)
 
-	// ── Footer divider ────────────────────────────────────────────────────────
-	m.AddRows(row.New(2).Add(col.New(12).Add(line.New(props.Line{Color: &invBorder, Thickness: 0.5}))))
-	m.AddRows(row.New(4))
+	p2.Add(
+		row.New(5),
+		row.New(10).Add(col.New(12).Add(text.New(
+			"These payments include any interest and other charges that may apply.",
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
+		row.New(24).Add(col.New(12).Add(text.New(
+			fmt.Sprintf(`This agreement is binding, and failure to meet its terms will allow the Lender to take certain recourse. First, late payments will incur a fee of %s every %s. Insufficient payment and bounced checks will incur a fee of %s. If payment should not be delivered at all, Lender will be entitled to %s.`,
+				d.LateFee, d.Interval, d.BounceFee, d.LenderAction),
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
+		row.New(8).Add(col.New(12).Add(text.New(
+			"In addition, the following terms and conditions apply: "+d.TermsConditions,
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(4),
+		row.New(20).Add(col.New(12).Add(text.New(
+			`By signing this agreement, all parties agree to the terms as described above. Alterations to this agreement can only be made by both parties and must be placed in writing. Both parties will receive a printed copy of this agreement, and will be responsible for upholding its terms.`,
+			props.Text{Size: 9, Color: &agBlack},
+		))),
+		row.New(10),
+	)
 
-	// ── Payment Method / Prepared By ─────────────────────────────────────────
-	m.AddRows(
-		row.New(6).Add(
-			col.New(6).Add(text.New("PAYMENT METHOD", props.Text{Size: 8, Style: fontstyle.Bold, Color: &invBlack})),
-			col.New(6).Add(text.New("PREPARED BY", props.Text{Size: 8, Style: fontstyle.Bold, Color: &invBlack})),
-		),
-		row.New(5).Add(
-			col.New(6).Add(text.New("Bank: "+d.PaymentMethod.Bank, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(6).Add(text.New(d.PreparedBy.Name, props.Text{Size: 8, Color: &invDarkGray})),
-		),
-		row.New(5).Add(
-			col.New(6).Add(text.New("Account Name: "+d.PaymentMethod.AccountName, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(6).Add(text.New(d.PreparedBy.Title, props.Text{Size: 8, Color: &invDarkGray})),
-		),
-		row.New(5).Add(
-			col.New(6).Add(text.New("Account Number: "+d.PaymentMethod.AccountNumber, props.Text{Size: 8, Color: &invDarkGray})),
-			col.New(6),
+	// ── Signature table ───────────────────────────────────────────────────────
+	p2.Add(
+		row.New(14).Add(
+			col.New(5).WithStyle(agDataCell(&agWhite)).Add(text.New(
+				"\n\n("+d.Payer+")", props.Text{Size: 8, Color: &agGray})),
+			col.New(2).WithStyle(agDataCell(&agWhite)).Add(text.New(
+				"\n\n(Date)", props.Text{Size: 8, Color: &agGray})),
+			col.New(1),
+			col.New(3).WithStyle(agDataCell(&agWhite)).Add(text.New(
+				"\n\n("+d.Payee+")", props.Text{Size: 8, Color: &agGray})),
+			col.New(1).WithStyle(agDataCell(&agWhite)).Add(text.New(
+				"\n\n(Date)", props.Text{Size: 8, Color: &agGray})),
 		),
 	)
+
+	m.AddPages(p2)
 
 	doc, err := m.Generate()
 	if err != nil {
