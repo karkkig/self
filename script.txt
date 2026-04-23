@@ -1,6 +1,7 @@
 package pdf
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/johnfercher/maroto/v2"
@@ -15,108 +16,245 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-// GenerateInvoice creates a PDF invoice at the given file path.
-func GenerateInvoice(path string) error {
-	// Use props.Color directly — no separate consts/color package needed
-	black := props.Color{Red: 0, Green: 0, Blue: 0}
+// ─── Data ──────────────────────────────────────────────────────────────────────
 
+type InvoiceData struct {
+	Number        string
+	Date          time.Time
+	Provider      PartyInfo
+	Client        PartyInfo
+	Items         []InvoiceItem
+	TaxRate       float64 // e.g. 0.06 for 6%
+	Notes         string
+	PaymentMethod PaymentInfo
+	PreparedBy    PreparedByInfo
+}
+
+type PartyInfo struct {
+	Name    string
+	Address string
+	City    string
+	Phone   string
+	Email   string
+}
+
+type InvoiceItem struct {
+	Description string
+	UnitPrice   float64
+	Qty         int
+}
+
+func (i InvoiceItem) Amount() float64 { return i.UnitPrice * float64(i.Qty) }
+
+type PaymentInfo struct {
+	Bank          string
+	AccountName   string
+	AccountNumber string
+}
+
+type PreparedByInfo struct {
+	Name  string
+	Title string
+}
+
+func (d InvoiceData) SubTotal() float64 {
+	var s float64
+	for _, it := range d.Items {
+		s += it.Amount()
+	}
+	return s
+}
+func (d InvoiceData) Tax() float64   { return d.SubTotal() * d.TaxRate }
+func (d InvoiceData) Total() float64 { return d.SubTotal() + d.Tax() }
+
+// ─── Colors ────────────────────────────────────────────────────────────────────
+
+var (
+	purple    = props.Color{Red: 98, Green: 0, Blue: 238}
+	black     = props.Color{Red: 0, Green: 0, Blue: 0}
+	lightGray = props.Color{Red: 240, Green: 240, Blue: 240}
+	darkGray  = props.Color{Red: 80, Green: 80, Blue: 80}
+	white     = props.Color{Red: 255, Green: 255, Blue: 255}
+	totalBg   = props.Color{Red: 30, Green: 30, Blue: 30}
+)
+
+// ─── GenerateInvoice ───────────────────────────────────────────────────────────
+
+func GenerateInvoice(path string, d InvoiceData) error {
 	cfg := config.NewBuilder().
 		WithPageSize("A4").
-		WithLeftMargin(20).
-		WithRightMargin(20).
-		WithTopMargin(20).
-		WithBottomMargin(20).
+		WithLeftMargin(15).WithRightMargin(15).
+		WithTopMargin(15).WithBottomMargin(15).
 		Build()
 
 	m := maroto.New(cfg)
 
-	// TITLE
+	// ── Header: INVOICE title + logo box ──────────────────────────────────────
 	m.AddRows(
-		row.New(20).Add(
-			col.New(12).Add(
-				text.New("INVOICE", props.Text{
-					Size:  22,
-					Style: fontstyle.Bold,
-					Align: align.Center,
+		row.New(18).Add(
+			col.New(6).Add(text.New("INVOICE", props.Text{
+				Size: 28, Style: fontstyle.Bold, Color: &black,
+			})),
+			col.New(6).Add(
+				// Purple logo placeholder box
+				text.New("STUDIO\nSHODWE", props.Text{
+					Size: 9, Style: fontstyle.Bold,
+					Color: &white, Align: align.Right,
 				}),
 			),
 		),
 	)
 
-	// DIVIDER
+	// Invoice number & date
+	m.AddRows(
+		row.New(6).Add(
+			col.New(12).Add(text.New(
+				"Invoice Number: #"+d.Number+"     Invoice Date: "+d.Date.Format("02/01/2006"),
+				props.Text{Size: 8, Color: &darkGray},
+			)),
+		),
+	)
+
+	m.AddRows(row.New(6))
+
+	// ── From / Bill To ────────────────────────────────────────────────────────
+	m.AddRows(
+		row.New(6).Add(
+			col.New(6).Add(text.New(d.Provider.Name, props.Text{
+				Size: 9, Style: fontstyle.Bold, Color: &black,
+			})),
+			col.New(6).Add(text.New("BILL TO", props.Text{
+				Size: 9, Style: fontstyle.Bold, Color: &black,
+			})),
+		),
+	)
 	m.AddRows(
 		row.New(5).Add(
-			col.New(12).Add(
-				line.New(props.Line{Color: &black, Thickness: 0.5}),
-			),
+			col.New(6).Add(text.New(d.Provider.Address+", "+d.Provider.City, props.Text{Size: 8, Color: &darkGray})),
+			col.New(6).Add(text.New(d.Client.Name, props.Text{Size: 8, Color: &darkGray})),
 		),
 	)
-
-	// INFO SECTION
 	m.AddRows(
-		row.New(10).Add(
-			col.New(6).Add(
-				text.New("Invoice #: 123456"),
-			),
-			col.New(6).Add(
-				text.New("Date: "+time.Now().Format("02 Jan 2006"), props.Text{
-					Align: align.Right,
-				}),
-			),
+		row.New(5).Add(
+			col.New(6).Add(text.New(d.Provider.Phone, props.Text{Size: 8, Color: &darkGray})),
+			col.New(6).Add(text.New(d.Client.Address+", "+d.Client.City, props.Text{Size: 8, Color: &darkGray})),
 		),
 	)
-
-	// TABLE HEADER
 	m.AddRows(
-		row.New(10).Add(
-			col.New(6).Add(text.New("Item", props.Text{Style: fontstyle.Bold})),
-			col.New(2).Add(text.New("Qty", props.Text{Style: fontstyle.Bold, Align: align.Center})),
-			col.New(2).Add(text.New("Price", props.Text{Style: fontstyle.Bold, Align: align.Right})),
-			col.New(2).Add(text.New("Total", props.Text{Style: fontstyle.Bold, Align: align.Right})),
+		row.New(5).Add(
+			col.New(6).Add(text.New(d.Provider.Email, props.Text{Size: 8, Color: &darkGray})),
+			col.New(6).Add(text.New(d.Client.Phone, props.Text{Size: 8, Color: &darkGray})),
+		),
+	)
+	m.AddRows(
+		row.New(5).Add(
+			col.New(6),
+			col.New(6).Add(text.New(d.Client.Email, props.Text{Size: 8, Color: &darkGray})),
 		),
 	)
 
-	// ITEMS
-	type item struct {
-		name, qty, price, total string
-	}
-	items := []item{
-		{"Service 1", "1", "100", "100"},
-		{"Service 2", "1", "150", "150"},
-		{"Service 3", "1", "200", "200"},
-	}
+	m.AddRows(row.New(6))
+
+	// ── Items Table ───────────────────────────────────────────────────────────
+	// Header
+	m.AddRows(
+		row.New(9).WithStyle(&props.Cell{BackgroundColor: &black}).Add(
+			col.New(6).Add(text.New("Item & Description", props.Text{Size: 9, Style: fontstyle.Bold, Color: &white})),
+			col.New(2).Add(text.New("Unit Price", props.Text{Size: 9, Style: fontstyle.Bold, Color: &white, Align: align.Right})),
+			col.New(2).Add(text.New("Qty", props.Text{Size: 9, Style: fontstyle.Bold, Color: &white, Align: align.Center})),
+			col.New(2).Add(text.New("Amount", props.Text{Size: 9, Style: fontstyle.Bold, Color: &white, Align: align.Right})),
+		),
+	)
 
 	var itemRows []core.Row
-	for _, it := range items {
+	for i, it := range d.Items {
 		it := it
-		itemRows = append(itemRows, row.New(8).Add(
-			col.New(6).Add(text.New(it.name)),
-			col.New(2).Add(text.New(it.qty, props.Text{Align: align.Center})),
-			col.New(2).Add(text.New("$"+it.price, props.Text{Align: align.Right})),
-			col.New(2).Add(text.New("$"+it.total, props.Text{Align: align.Right})),
+		bg := &white
+		if i%2 != 0 {
+			bg = &lightGray
+		}
+		itemRows = append(itemRows, row.New(8).WithStyle(&props.Cell{BackgroundColor: bg}).Add(
+			col.New(6).Add(text.New(it.Description, props.Text{Size: 8, Color: &black})),
+			col.New(2).Add(text.New(fmt.Sprintf("$%.2f", it.UnitPrice), props.Text{Size: 8, Color: &black, Align: align.Right})),
+			col.New(2).Add(text.New(fmt.Sprintf("%d", it.Qty), props.Text{Size: 8, Color: &black, Align: align.Center})),
+			col.New(2).Add(text.New(fmt.Sprintf("$%.2f", it.Amount()), props.Text{Size: 8, Color: &black, Align: align.Right})),
 		))
 	}
 	m.AddRows(itemRows...)
 
-	// TOTAL
+	m.AddRows(row.New(6))
+
+	// ── Notes / Totals side by side ───────────────────────────────────────────
 	m.AddRows(
-		row.New(10).Add(
-			col.New(10),
-			col.New(2).Add(
-				text.New("Total: $450", props.Text{
-					Align: align.Right,
-					Style: fontstyle.Bold,
-				}),
-			),
+		row.New(7).Add(
+			col.New(6).Add(text.New("NOTES / TERMS:", props.Text{Size: 8, Style: fontstyle.Bold, Color: &black})),
+			col.New(4),
+			col.New(2).Add(text.New("Sub-Total", props.Text{Size: 8, Color: &darkGray})),
+		),
+	)
+	m.AddRows(
+		row.New(6).Add(
+			col.New(6).Add(text.New(d.Notes, props.Text{Size: 8, Color: &darkGray})),
+			col.New(4),
+			col.New(2).Add(text.New(fmt.Sprintf("$%.2f", d.SubTotal()), props.Text{Size: 8, Align: align.Right, Color: &black})),
 		),
 	)
 
-	// NOTES
+	taxLabel := fmt.Sprintf("Tax (%.0f%%)", d.TaxRate*100)
 	m.AddRows(
-		row.New(15).Add(
-			col.New(12).Add(
-				text.New("Payment due within 15 days."),
-			),
+		row.New(6).Add(
+			col.New(10),
+			col.New(2).Add(text.New(taxLabel, props.Text{Size: 8, Color: &darkGray})),
+		),
+	)
+	m.AddRows(
+		row.New(6).Add(
+			col.New(10),
+			col.New(2).Add(text.New(fmt.Sprintf("$%.2f", d.Tax()), props.Text{Size: 8, Align: align.Right, Color: &black})),
+		),
+	)
+
+	m.AddRows(
+		row.New(2).Add(
+			col.New(6),
+			col.New(6).Add(line.New(props.Line{Color: &black, Thickness: 0.3})),
+		),
+	)
+
+	// Total (dark row)
+	m.AddRows(
+		row.New(10).WithStyle(&props.Cell{BackgroundColor: &totalBg}).Add(
+			col.New(8),
+			col.New(2).Add(text.New("Total", props.Text{Size: 10, Style: fontstyle.Bold, Color: &white, Align: align.Left})),
+			col.New(2).Add(text.New(fmt.Sprintf("$%.2f", d.Total()), props.Text{Size: 10, Style: fontstyle.Bold, Color: &white, Align: align.Right})),
+		),
+	)
+
+	m.AddRows(row.New(10))
+
+	// ── Footer: Payment Method / Prepared By ─────────────────────────────────
+	m.AddRows(
+		row.New(6).Add(
+			col.New(6).Add(text.New("PAYMENT METHOD", props.Text{Size: 8, Style: fontstyle.Bold, Color: &black})),
+			col.New(6).Add(text.New("PREPARED BY", props.Text{Size: 8, Style: fontstyle.Bold, Color: &black})),
+		),
+	)
+	m.AddRows(
+		row.New(5).Add(
+			col.New(6).Add(text.New("Bank: "+d.PaymentMethod.Bank, props.Text{Size: 8, Color: &darkGray})),
+			col.New(6).Add(text.New(d.PreparedBy.Name, props.Text{Size: 8, Color: &darkGray})),
+		),
+	)
+	m.AddRows(
+		row.New(5).Add(
+			col.New(6).Add(text.New("Account Name: "+d.PaymentMethod.AccountName, props.Text{Size: 8, Color: &darkGray})),
+			col.New(6).Add(text.New(d.PreparedBy.Title, props.Text{Size: 8, Color: &darkGray})),
+		),
+	)
+	m.AddRows(
+		row.New(5).Add(
+			col.New(6).Add(text.New("Account Number: "+d.PaymentMethod.AccountNumber, props.Text{Size: 8, Color: &darkGray})),
+			col.New(6),
 		),
 	)
 
