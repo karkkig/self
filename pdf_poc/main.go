@@ -8,11 +8,14 @@ import (
 
 	cdpdf "pdf_poc/chromedp"
 	mapdf "pdf_poc/maroto"
+	pcpdf "pdf_poc/pdfcpu"
 )
 
 func main() {
 
 	os.MkdirAll("output", os.ModePerm)
+
+	fmt.Println("Generating chromedp PDF...")
 
 	invoiceHTML, err := cdpdf.ReadHTML("chromedp/template/invoice.html")
 	if err != nil {
@@ -40,6 +43,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("Generating maroto PDF...")
 
 	// ── 1. Invoice ────────────────────────────────────────────────────────────
 	invoiceData := mapdf.InvoiceData{
@@ -79,7 +84,6 @@ func main() {
 	if err := mapdf.GenerateInvoice("output/invoice-maroto.pdf", invoiceData); err != nil {
 		log.Fatal("invoice:", err)
 	}
-	fmt.Println("✅ invoice.pdf generated")
 
 	// ── 2 & 3. Services Agreement (p.1) + Payment Plan (p.2) — single PDF ────
 	fullAgreement := mapdf.FullAgreementData{
@@ -124,7 +128,6 @@ func main() {
 	if err := mapdf.GenerateFullAgreement("output/agreement-maroto.pdf", fullAgreement); err != nil {
 		log.Fatal("full agreement:", err)
 	}
-	fmt.Println("✅ full_agreement.pdf generated (p1=Services Agreement, p2=Payment Plan)")
 
 	badgeData := mapdf.GPayBadgeData{
 		BusinessName: "Your Business Name",
@@ -135,6 +138,22 @@ func main() {
 	}
 	if err := mapdf.GenerateGPayBadge("output/badge-maroto.pdf", badgeData); err != nil {
 		log.Fatal("gpay badge:", err)
+	}
+
+	fmt.Println("Generating pdfcpu PDF...")
+
+	if err := pcpdf.GenerateInvoice("output/invoice-pdfcpu.pdf"); err != nil {
+		log.Fatalf("Failed to generate invoice: %v", err)
+	}
+
+	// Generate Payment Badge PDF
+	if err := pcpdf.GeneratePaymentBadge("output/badge-pdfcpu.pdf"); err != nil {
+		log.Fatalf("Failed to generate payment badge: %v", err)
+	}
+
+	// Generate Two-Page Services Agreement PDF
+	if err := pcpdf.GenerateAgreement("output/agreement-pdfcpu.pdf"); err != nil {
+		log.Fatalf("Failed to generate agreement: %v", err)
 	}
 
 	fmt.Println("✅ All PDFs generated successfully!")
