@@ -10,27 +10,29 @@ import (
 // Generate Invoice PDF
 func GenerateInvoice(outputPath string) error {
 
+	// Config
 	cfg := config.NewBuilder().
 		WithPageSize(consts.A4).
 		WithOrientation(consts.Portrait).
 		Build()
 
-	m := core.NewMaroto(cfg)
+	m := core.New(cfg)
 
 	// Title
 	m.AddRow(20,
-		text.NewCol(12, "INVOICE",
-			text.NewProps().
-				WithAlign(consts.Center).
-				WithStyle(consts.Bold).
-				WithSize(20)),
+		text.New("INVOICE",
+			text.WithAlign(consts.Center),
+			text.WithStyle(consts.Bold),
+			text.WithSize(20),
+		),
 	)
 
-	// Info
+	// Info Row
 	m.AddRow(10,
-		text.NewCol(6, "Invoice #: #123456"),
-		text.NewCol(6, "Date: 23-04-2026",
-			text.NewProps().WithAlign(consts.Right)),
+		text.New("Invoice #: #123456"),
+		text.New("Date: 23-04-2026",
+			text.WithAlign(consts.Right),
+		),
 	)
 
 	// Spacer
@@ -38,10 +40,10 @@ func GenerateInvoice(outputPath string) error {
 
 	// Table Header
 	m.AddRow(10,
-		text.NewCol(6, "Item", text.NewProps().WithStyle(consts.Bold)),
-		text.NewCol(2, "Qty", text.NewProps().WithStyle(consts.Bold)),
-		text.NewCol(2, "Price", text.NewProps().WithStyle(consts.Bold)),
-		text.NewCol(2, "Total", text.NewProps().WithStyle(consts.Bold)),
+		text.New("Item", text.WithStyle(consts.Bold)),
+		text.New("Qty", text.WithStyle(consts.Bold)),
+		text.New("Price", text.WithStyle(consts.Bold)),
+		text.New("Total", text.WithStyle(consts.Bold)),
 	)
 
 	// Table Rows
@@ -53,10 +55,10 @@ func GenerateInvoice(outputPath string) error {
 
 	for _, item := range items {
 		m.AddRow(8,
-			text.NewCol(6, item[0]),
-			text.NewCol(2, item[1]),
-			text.NewCol(2, item[2]),
-			text.NewCol(2, item[3]),
+			text.New(item[0]),
+			text.New(item[1]),
+			text.New(item[2]),
+			text.New(item[3]),
 		)
 	}
 
@@ -65,16 +67,18 @@ func GenerateInvoice(outputPath string) error {
 
 	// Total
 	m.AddRow(10,
-		text.NewCol(10, ""),
-		text.NewCol(2, "Total: 450",
-			text.NewProps().
-				WithAlign(consts.Right).
-				WithStyle(consts.Bold)),
+		text.New(""),
+		text.New(""),
+		text.New(""),
+		text.New("Total: 450",
+			text.WithAlign(consts.Right),
+			text.WithStyle(consts.Bold),
+		),
 	)
 
 	// Notes
 	m.AddRow(15,
-		text.NewCol(12, "Payment due within 15 days."),
+		text.New("Payment due within 15 days."),
 	)
 
 	// Generate PDF
