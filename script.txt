@@ -1,153 +1,76 @@
-package pdf
+This POC is really comparing three very different PDF strategies, even though all three generate the same outputs in main.go.
 
-import (
-	"github.com/johnfercher/maroto/v2"
-	"github.com/johnfercher/maroto/v2/pkg/components/col"
-	"github.com/johnfercher/maroto/v2/pkg/components/line"
-	"github.com/johnfercher/maroto/v2/pkg/components/row"
-	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/config"
-	"github.com/johnfercher/maroto/v2/pkg/consts/align"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
-	"github.com/johnfercher/maroto/v2/pkg/props"
-)
+chromedp in chromedp/chromedp.go is “HTML/CSS rendered by headless Chrome, then printed to PDF.”
+maroto in maroto/ma-invoice.go, ma-badge.go, and ma-agreement.go is a Go-native layout DSL for rows, columns, text, images, and pages.
+pdfcpu in this repo is not being used as a high-level layout engine; the code in pdfcpu/pc-invoice.go, pc-badge.go, and pc-agreement.go manually writes raw PDF drawing commands and then uses pdfcpu mainly to optimize/normalize the generated PDF.
 
-// ─── Data ──────────────────────────────────────────────────────────────────────
+Differences
 
-type GPayBadgeData struct {
-	BusinessName string
-	PhoneNumber  string
-	UPIHandle    string // e.g. "12345 67890@yhh"
-	// QRCodePath is the path to the QR code image file (PNG/JPG).
-	// If empty, a placeholder box is drawn instead.
-	QRCodePath string
-}
+chromedp
 
-// ─── GenerateGPayBadge ────────────────────────────────────────────────────────
-// Produces a portrait card-sized PDF (85mm x 135mm) resembling the GPay badge.
+Best when the source is already HTML/CSS or needs browser-quality styling.
+Strongest visual fidelity for templates, branding, tables, print CSS, and rich layouts.
+Operationally heaviest for a server because you must deploy Chrome/Chromium and manage browser startup, memory, and timeouts.
+In this POC it also depends on a live external QR image URL by default via https://api.qrserver.com/... in chromedp/chromedp.go, which is a server deployment risk unless you switch to local QR generation.
+maroto
 
-func GenerateGPayBadge(path string, d GPayBadgeData) error {
-	bgBlack  := props.Color{Red: 0, Green: 0, Blue: 0}
-	gpayBlue := props.Color{Red: 66, Green: 133, Blue: 244}
-	gpayGray := props.Color{Red: 120, Green: 120, Blue: 120}
-	white    := props.Color{Red: 255, Green: 255, Blue: 255}
+Best when PDFs are structured business documents built in Go: invoices, statements, receipts, agreements, certificates.
+Easier to maintain than low-level PDF drawing because layout is expressed as rows/cols/components.
+Much lighter for servers than chromedp; no browser dependency.
+Good balance of control and maintainability, but less flexible than HTML/CSS for pixel-perfect design-heavy documents.
+In this repo it even embeds fonts for portability in maroto/ma-agreement.go, which is a plus for deployment.
+pdfcpu
 
-	// Custom card size: 85mm wide x 135mm tall
-	cfg := config.NewBuilder().
-		WithDimensions(85, 135).
-		WithLeftMargin(6).WithRightMargin(6).
-		WithTopMargin(8).WithBottomMargin(8).
-		Build()
+Best when you need low-level PDF control or PDF post-processing, not when you want a pleasant templating workflow.
+Highest engineering effort for document authoring because every coordinate, wrap rule, font limitation, and drawing primitive is manual.
+Lightest runtime footprint on a server because there is no browser, but highest development and maintenance cost.
+Good for stamping, merging, optimizing, validating, watermarking, or specialized PDF manipulation.
+In this POC, it is the most custom and brittle path: manual word wrap, manual encoding, manual page streams, manual QR embedding.
+Best use cases in this project
 
-	m := maroto.New(cfg)
+Invoice
 
-	// ── GPay logo text ────────────────────────────────────────────────────────
-	m.AddRows(
-		row.New(14).Add(
-			col.New(12).Add(
-				// "G" in blue
-				text.New("G", props.Text{
-					Size: 20, Style: fontstyle.Bold,
-					Color: &gpayBlue, Align: align.Center,
-				}),
-			),
-		),
-	)
-	m.AddRows(
-		row.New(8).Add(
-			col.New(12).Add(text.New("Pay", props.Text{
-				Size: 14, Style: fontstyle.Bold,
-				Color: &bgBlack, Align: align.Center,
-			})),
-		),
-	)
-	m.AddRows(
-		row.New(6).Add(
-			col.New(12).Add(text.New("LogoHere", props.Text{
-				Size: 7, Color: &gpayGray, Align: align.Center,
-			})),
-		),
-	)
+chromedp: best if your invoice already exists as a web template or needs exact branding.
+maroto: best if the invoice structure is stable and generated fully from backend data.
+pdfcpu: only if you need ultra-custom low-level output or want to avoid any higher-level layout layer.
+Badge / payment card
 
-	m.AddRows(row.New(3))
+chromedp: good for marketing-style badge layouts, but current QR loading is network-dependent.
+maroto: very suitable here; it already generates the QR locally and the layout is simple.
+pdfcpu: also suitable for compact fixed-layout cards, but harder to evolve.
+Agreement / multi-page forms
 
-	// ── "accepted here" ───────────────────────────────────────────────────────
-	m.AddRows(
-		row.New(7).Add(
-			col.New(12).Add(text.New("accepted here", props.Text{
-				Size: 9, Color: &gpayGray, Align: align.Center,
-			})),
-		),
-	)
+chromedp: best for long legal text if you want readable HTML templates and easier copy updates.
+maroto: good if the agreement structure is fixed and tabular/form-like.
+pdfcpu: workable, but the hardest to maintain as clauses and pagination change.
+For server deployment
 
-	m.AddRows(row.New(4))
-	m.AddRows(row.New(2).Add(col.New(12).Add(line.New(props.Line{Color: &gpayGray, Thickness: 0.3}))))
-	m.AddRows(row.New(4))
+Choose chromedp if:
+You want the fastest path from HTML template to polished PDF.
+Your team already knows HTML/CSS better than PDF internals.
+You are okay shipping Chrome/Chromium in Docker/VMs and sizing for higher CPU/RAM.
+Choose maroto if:
+You want a backend-only Go service with simpler operations.
+Your PDFs are mostly structured documents, not brochure-level web layouts.
+You want the best maintainability/runtime tradeoff.
+Choose pdfcpu if:
+Your primary need is PDF manipulation or very controlled low-level generation.
+You can afford the extra development complexity.
+You do not want a browser runtime at all.
+Practical recommendation
+For a server-hosted production service, I’d rank them:
 
-	// ── Business name & phone ─────────────────────────────────────────────────
-	m.AddRows(
-		row.New(9).Add(
-			col.New(12).Add(text.New(d.BusinessName, props.Text{
-				Size: 11, Style: fontstyle.Bold,
-				Color: &bgBlack, Align: align.Center,
-			})),
-		),
-	)
-	m.AddRows(
-		row.New(7).Add(
-			col.New(12).Add(text.New(d.PhoneNumber, props.Text{
-				Size: 9, Color: &gpayGray, Align: align.Center,
-			})),
-		),
-	)
+maroto for most transactional PDFs.
+chromedp for high-fidelity HTML-driven templates.
+pdfcpu as a specialist tool for low-level generation or post-processing, not the default authoring path.
+So for this POC:
 
-	m.AddRows(row.New(4))
+Use maroto as the default backend PDF engine.
+Use chromedp only for templates that truly benefit from HTML/CSS rendering.
+Keep pdfcpu for advanced PDF manipulation or edge-case rendering where low-level control matters.
+I also verified the repo builds with go test ./...; there are no test files, but all packages compile cleanly.
 
-	// ── QR Code placeholder (replace with image.NewFromFileCol when you have the file) ──
-	qrSize := 32.0
-	if d.QRCodePath != "" {
-		// If you have the QR image, use:
-		// import "github.com/johnfercher/maroto/v2/pkg/components/image"
-		// m.AddRows(row.New(qrSize).Add(
-		//     col.New(2),
-		//     col.New(8).Add(image.NewFromFileCol(8, d.QRCodePath, props.Rect{Center: true, Percent: 100})),
-		//     col.New(2),
-		// ))
-		_ = d.QRCodePath
-	}
-	// Placeholder box representing the QR code area
-	qrBg := props.Color{Red: 230, Green: 230, Blue: 230}
-	m.AddRows(
-		row.New(qrSize).WithStyle(&props.Cell{BackgroundColor: &qrBg}).Add(
-			col.New(2),
-			col.New(8).Add(text.New("[ QR CODE ]", props.Text{
-				Size: 9, Color: &gpayGray, Align: align.Center,
-			})),
-			col.New(2),
-		),
-	)
 
-	m.AddRows(row.New(4))
 
-	// ── UPI handle ───────────────────────────────────────────────────────────
-	m.AddRows(
-		row.New(7).Add(
-			col.New(12).Add(text.New(d.UPIHandle, props.Text{
-				Size: 9, Style: fontstyle.Bold,
-				Color: &bgBlack, Align: align.Center,
-			})),
-		),
-	)
 
-	// Bottom accent bar
-	m.AddRows(row.New(3))
-	m.AddRows(row.New(3).WithStyle(&props.Cell{BackgroundColor: &gpayBlue}).Add(col.New(12)))
 
-	_ = white // available for further styling
-
-	doc, err := m.Generate()
-	if err != nil {
-		return err
-	}
-	return doc.Save(path)
-}
