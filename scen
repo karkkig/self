@@ -1,0 +1,15 @@
+This Proof of Concept (POC) was conducted to evaluate different approaches for generating PDF documents in a Go-based backend system.
+
+The objective was to identify the most suitable solution for generating various types of documents such as invoices, badges, and agreements in a scalable and maintainable manner.
+
+Three different strategies were evaluated:
+
+1. chromedp – Generates PDFs by rendering HTML/CSS using a headless Chrome browser.
+2. maroto – A Go-native PDF generation library using a layout-based DSL.
+3. pdfcpu – A low-level PDF processing library used here for manual PDF generation.
+
+Each approach was implemented to generate the same set of documents to ensure a fair comparison across:
+- Visual fidelity
+- Performance
+- Maintainability
+- Deployment complexity
