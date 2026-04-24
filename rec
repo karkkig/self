@@ -1,0 +1,15 @@
+Based on the evaluation, the following recommendations are made:
+
+1. Use maroto as the default PDF generation solution for backend services.
+   - It provides the best balance between performance, maintainability, and simplicity.
+   - Ideal for structured documents such as invoices, receipts, and agreements.
+
+2. Use chromedp selectively for cases requiring high visual fidelity.
+   - Recommended for HTML-based templates or design-heavy documents.
+   - Should be deployed with proper browser lifecycle management and resource control.
+
+3. Use pdfcpu as a supporting tool rather than a primary generation method.
+   - Suitable for post-processing tasks such as merging, watermarking, and optimization.
+   - Not recommended for building document layouts from scratch.
+
+Overall, a hybrid approach combining these tools provides the most scalable and maintainable solution.
