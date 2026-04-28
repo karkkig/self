@@ -1,76 +1,109 @@
-This POC is really comparing three very different PDF strategies, even though all three generate the same outputs in main.go.
+package mapdf
 
-chromedp in chromedp/chromedp.go is “HTML/CSS rendered by headless Chrome, then printed to PDF.”
-maroto in maroto/ma-invoice.go, ma-badge.go, and ma-agreement.go is a Go-native layout DSL for rows, columns, text, images, and pages.
-pdfcpu in this repo is not being used as a high-level layout engine; the code in pdfcpu/pc-invoice.go, pc-badge.go, and pc-agreement.go manually writes raw PDF drawing commands and then uses pdfcpu mainly to optimize/normalize the generated PDF.
+// This file shows the exact rows to add inside GenerateFullAgreement's
+// p2.Add(...) block for italic, bold, and strikethrough.
+//
+// ── Why the previous approach failed ────────────────────────────────────────
+//
+// row.New(8).Add(textCol).Add(lineCol)
+//   → maroto's Add() replaces the column slot; the second call overwrites
+//     the first. The text disappears, only the line renders.
+//
+// line.New() in its own row
+//   → line.New() draws a full-column divider at a fixed vertical position
+//     inside its row. It has no knowledge of the text row above it, so
+//     it cannot align to the glyph mid-height. At typical row heights the
+//     line lands below the text, not through it.
+//
+// ── The working approach ─────────────────────────────────────────────────────
+//
+// maroto renders rows sequentially top-to-bottom with no overlap. The trick
+// is to use a deliberately tiny intermediate spacer row to shift the rule row
+// upward so it visually intersects the glyphs of the text row above:
+//
+//   Row A  height=8   text "This is strikethrough."
+//   Row B  height=3   upward spacer — consumes vertical space so Row C
+//                     starts 3pt below Row A's bottom edge (i.e. partway
+//                     through the glyph body)
+//   Row C  height=0.5 line.New() — the actual strikethrough rule
+//   Row D  height=0.5 tiny bottom spacer to avoid the next row colliding
+//                     with the rule
+//
+// Total consumed height: 8 + 3 + 0.5 + 0.5 = 12pt (same as a normal
+// text row + gap).  No negative margins are needed.
+//
+// Vertical calibration:
+//   DejaVu Sans 9pt:  cap-height ≈ 9 × 0.73 = 6.6pt
+//   Strikethrough at 50% cap-height = 3.3pt above the baseline.
+//   Row A bottom edge is the baseline.
+//   Spacer of 3pt places the rule at baseline + 3pt ≈ mid cap-height. ✓
+//
+// ── Import additions needed in agreement.go ──────────────────────────────────
+//
+//   "github.com/johnfercher/maroto/v2/pkg/consts/orientation"
+//
+// (already imported in most maroto projects; add if missing)
 
-Differences
+import (
+	"github.com/johnfercher/maroto/v2/pkg/components/col"
+	"github.com/johnfercher/maroto/v2/pkg/components/line"
+	"github.com/johnfercher/maroto/v2/pkg/components/row"
+	"github.com/johnfercher/maroto/v2/pkg/components/text"
+	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
+	"github.com/johnfercher/maroto/v2/pkg/consts/orientation"
+	"github.com/johnfercher/maroto/v2/pkg/core"
+	"github.com/johnfercher/maroto/v2/pkg/props"
+)
 
-chromedp
+// styledTextRows returns the three demo rows to be passed to p2.Add().
+// Drop this call's result directly into the p2.Add(...) variadic arguments.
+func styledTextRows() []core.Row {
+	black := props.Color{Red: 20, Green: 20, Blue: 20}
 
-Best when the source is already HTML/CSS or needs browser-quality styling.
-Strongest visual fidelity for templates, branding, tables, print CSS, and rich layouts.
-Operationally heaviest for a server because you must deploy Chrome/Chromium and manage browser startup, memory, and timeouts.
-In this POC it also depends on a live external QR image URL by default via https://api.qrserver.com/... in chromedp/chromedp.go, which is a server deployment risk unless you switch to local QR generation.
-maroto
+	strikeLineProps := props.Line{
+		Color:       &black,
+		Thickness:   0.5,
+		SizePercent: 100,
+		Orientation: orientation.Horizontal,
+	}
 
-Best when PDFs are structured business documents built in Go: invoices, statements, receipts, agreements, certificates.
-Easier to maintain than low-level PDF drawing because layout is expressed as rows/cols/components.
-Much lighter for servers than chromedp; no browser dependency.
-Good balance of control and maintainability, but less flexible than HTML/CSS for pixel-perfect design-heavy documents.
-In this repo it even embeds fonts for portability in maroto/ma-agreement.go, which is a plus for deployment.
-pdfcpu
+	return []core.Row{
+		// ── Italic ────────────────────────────────────────────────────────────
+		row.New(8).Add(col.New(12).Add(text.New(
+			"This is italic.",
+			props.Text{Size: 9, Style: fontstyle.Italic, Color: &black, Family: fontFamily},
+		))),
+		row.New(4), // gap
 
-Best when you need low-level PDF control or PDF post-processing, not when you want a pleasant templating workflow.
-Highest engineering effort for document authoring because every coordinate, wrap rule, font limitation, and drawing primitive is manual.
-Lightest runtime footprint on a server because there is no browser, but highest development and maintenance cost.
-Good for stamping, merging, optimizing, validating, watermarking, or specialized PDF manipulation.
-In this POC, it is the most custom and brittle path: manual word wrap, manual encoding, manual page streams, manual QR embedding.
-Best use cases in this project
+		// ── Bold ──────────────────────────────────────────────────────────────
+		row.New(8).Add(col.New(12).Add(text.New(
+			"This is bold.",
+			props.Text{Size: 9, Style: fontstyle.Bold, Color: &black, Family: fontFamily},
+		))),
+		row.New(4), // gap
 
-Invoice
+		// ── Strikethrough ─────────────────────────────────────────────────────
+		// Row 1: the text itself
+		row.New(8).Add(col.New(12).Add(text.New(
+			"This is strikethrough.",
+			props.Text{Size: 9, Style: fontstyle.Normal, Color: &black, Family: fontFamily},
+		))),
+		// Row 2: spacer that shifts the rule up into the glyph body.
+		//   DejaVu Sans 9pt cap-height ≈ 6.6pt; mid cap-height ≈ 3.3pt above
+		//   baseline. A 3pt spacer places the rule at roughly that height.
+		row.New(3),
+		// Row 3: the strikethrough rule — thin row so it stays at glyph level.
+		row.New(0.5).Add(col.New(12).Add(line.New(strikeLineProps))),
+		// Row 4: small bottom spacer so the next content row is not cramped.
+		row.New(0.5),
+		row.New(3), // restore the normal inter-paragraph gap
+	}
+}
 
-chromedp: best if your invoice already exists as a web template or needs exact branding.
-maroto: best if the invoice structure is stable and generated fully from backend data.
-pdfcpu: only if you need ultra-custom low-level output or want to avoid any higher-level layout layer.
-Badge / payment card
-
-chromedp: good for marketing-style badge layouts, but current QR loading is network-dependent.
-maroto: very suitable here; it already generates the QR locally and the layout is simple.
-pdfcpu: also suitable for compact fixed-layout cards, but harder to evolve.
-Agreement / multi-page forms
-
-chromedp: best for long legal text if you want readable HTML templates and easier copy updates.
-maroto: good if the agreement structure is fixed and tabular/form-like.
-pdfcpu: workable, but the hardest to maintain as clauses and pagination change.
-For server deployment
-
-Choose chromedp if:
-You want the fastest path from HTML template to polished PDF.
-Your team already knows HTML/CSS better than PDF internals.
-You are okay shipping Chrome/Chromium in Docker/VMs and sizing for higher CPU/RAM.
-Choose maroto if:
-You want a backend-only Go service with simpler operations.
-Your PDFs are mostly structured documents, not brochure-level web layouts.
-You want the best maintainability/runtime tradeoff.
-Choose pdfcpu if:
-Your primary need is PDF manipulation or very controlled low-level generation.
-You can afford the extra development complexity.
-You do not want a browser runtime at all.
-Practical recommendation
-For a server-hosted production service, I’d rank them:
-
-maroto for most transactional PDFs.
-chromedp for high-fidelity HTML-driven templates.
-pdfcpu as a specialist tool for low-level generation or post-processing, not the default authoring path.
-So for this POC:
-
-Use maroto as the default backend PDF engine.
-Use chromedp only for templates that truly benefit from HTML/CSS rendering.
-Keep pdfcpu for advanced PDF manipulation or edge-case rendering where low-level control matters.
-I also verified the repo builds with go test ./...; there are no test files, but all packages compile cleanly.
-
-
-
-
-
+// ── Usage in GenerateFullAgreement ───────────────────────────────────────────
+//
+// Inside the p2.Add(...) block, spread the slice:
+//
+//   p2.Add(styledTextRows()...)
+//
+// Or inline the rows directly — both are equivalent.
