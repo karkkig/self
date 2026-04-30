@@ -1,21 +1,14 @@
-func sigBlock(page *template.PageBuilder, label string) {
-	// Signature: underlined label + underlined Date side by side
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(8, func(c *template.ColBuilder) {
-			c.Text("("+label+")",
-				template.FontSize(9),
-				template.TextColor(cGray),
-				template.Underline(),
-			)
-		})
-		r.Col(1, func(c *template.ColBuilder) {})
-		r.Col(3, func(c *template.ColBuilder) {
-			c.Text("(Date)",
-				template.FontSize(9),
-				template.TextColor(cGray),
-				template.Underline(),
-			)
-		})
-	})
-	spacer(page, 4)
-}
+4. gpdf – Modern Go-native PDF generation library
+A Go-native PDF generation library focused on simplicity and structured document creation.
+Uses a higher-level API compared to low-level libraries like pdfcpu.
+Supports text, images, and basic layout handling without requiring HTML rendering.
+Designed to be lightweight and developer-friendly for backend services.
+🔹 Add under “POC Results Analysis”
+Gpdf:
+Provides a clean and modern API for generating PDFs in Go.
+Easier to use than pdfcpu due to reduced manual handling of PDF internals.
+Lightweight with no external runtime dependencies.
+Suitable for structured documents such as invoices, badges, and simple reports.
+Offers better abstraction than pdfcpu but less layout flexibility than maroto.
+Dynamic text handling is partially supported, but complex paragraph wrapping and pagination still require manual tuning.
+Font handling requires explicit loading, similar to other Go-native solutions.
