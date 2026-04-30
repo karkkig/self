@@ -1,109 +1,21 @@
-package mapdf
-
-// This file shows the exact rows to add inside GenerateFullAgreement's
-// p2.Add(...) block for italic, bold, and strikethrough.
-//
-// ── Why the previous approach failed ────────────────────────────────────────
-//
-// row.New(8).Add(textCol).Add(lineCol)
-//   → maroto's Add() replaces the column slot; the second call overwrites
-//     the first. The text disappears, only the line renders.
-//
-// line.New() in its own row
-//   → line.New() draws a full-column divider at a fixed vertical position
-//     inside its row. It has no knowledge of the text row above it, so
-//     it cannot align to the glyph mid-height. At typical row heights the
-//     line lands below the text, not through it.
-//
-// ── The working approach ─────────────────────────────────────────────────────
-//
-// maroto renders rows sequentially top-to-bottom with no overlap. The trick
-// is to use a deliberately tiny intermediate spacer row to shift the rule row
-// upward so it visually intersects the glyphs of the text row above:
-//
-//   Row A  height=8   text "This is strikethrough."
-//   Row B  height=3   upward spacer — consumes vertical space so Row C
-//                     starts 3pt below Row A's bottom edge (i.e. partway
-//                     through the glyph body)
-//   Row C  height=0.5 line.New() — the actual strikethrough rule
-//   Row D  height=0.5 tiny bottom spacer to avoid the next row colliding
-//                     with the rule
-//
-// Total consumed height: 8 + 3 + 0.5 + 0.5 = 12pt (same as a normal
-// text row + gap).  No negative margins are needed.
-//
-// Vertical calibration:
-//   DejaVu Sans 9pt:  cap-height ≈ 9 × 0.73 = 6.6pt
-//   Strikethrough at 50% cap-height = 3.3pt above the baseline.
-//   Row A bottom edge is the baseline.
-//   Spacer of 3pt places the rule at baseline + 3pt ≈ mid cap-height. ✓
-//
-// ── Import additions needed in agreement.go ──────────────────────────────────
-//
-//   "github.com/johnfercher/maroto/v2/pkg/consts/orientation"
-//
-// (already imported in most maroto projects; add if missing)
-
-import (
-	"github.com/johnfercher/maroto/v2/pkg/components/col"
-	"github.com/johnfercher/maroto/v2/pkg/components/line"
-	"github.com/johnfercher/maroto/v2/pkg/components/row"
-	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
-	"github.com/johnfercher/maroto/v2/pkg/consts/orientation"
-	"github.com/johnfercher/maroto/v2/pkg/core"
-	"github.com/johnfercher/maroto/v2/pkg/props"
-)
-
-// styledTextRows returns the three demo rows to be passed to p2.Add().
-// Drop this call's result directly into the p2.Add(...) variadic arguments.
-func styledTextRows() []core.Row {
-	black := props.Color{Red: 20, Green: 20, Blue: 20}
-
-	strikeLineProps := props.Line{
-		Color:       &black,
-		Thickness:   0.5,
-		SizePercent: 100,
-		Orientation: orientation.Horizontal,
-	}
-
-	return []core.Row{
-		// ── Italic ────────────────────────────────────────────────────────────
-		row.New(8).Add(col.New(12).Add(text.New(
-			"This is italic.",
-			props.Text{Size: 9, Style: fontstyle.Italic, Color: &black, Family: fontFamily},
-		))),
-		row.New(4), // gap
-
-		// ── Bold ──────────────────────────────────────────────────────────────
-		row.New(8).Add(col.New(12).Add(text.New(
-			"This is bold.",
-			props.Text{Size: 9, Style: fontstyle.Bold, Color: &black, Family: fontFamily},
-		))),
-		row.New(4), // gap
-
-		// ── Strikethrough ─────────────────────────────────────────────────────
-		// Row 1: the text itself
-		row.New(8).Add(col.New(12).Add(text.New(
-			"This is strikethrough.",
-			props.Text{Size: 9, Style: fontstyle.Normal, Color: &black, Family: fontFamily},
-		))),
-		// Row 2: spacer that shifts the rule up into the glyph body.
-		//   DejaVu Sans 9pt cap-height ≈ 6.6pt; mid cap-height ≈ 3.3pt above
-		//   baseline. A 3pt spacer places the rule at roughly that height.
-		row.New(3),
-		// Row 3: the strikethrough rule — thin row so it stays at glyph level.
-		row.New(0.5).Add(col.New(12).Add(line.New(strikeLineProps))),
-		// Row 4: small bottom spacer so the next content row is not cramped.
-		row.New(0.5),
-		row.New(3), // restore the normal inter-paragraph gap
-	}
+func sigBlock(page *template.PageBuilder, label string) {
+	// Signature: underlined label + underlined Date side by side
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(8, func(c *template.ColBuilder) {
+			c.Text("("+label+")",
+				template.FontSize(9),
+				template.TextColor(cGray),
+				template.Underline(),
+			)
+		})
+		r.Col(1, func(c *template.ColBuilder) {})
+		r.Col(3, func(c *template.ColBuilder) {
+			c.Text("(Date)",
+				template.FontSize(9),
+				template.TextColor(cGray),
+				template.Underline(),
+			)
+		})
+	})
+	spacer(page, 4)
 }
-
-// ── Usage in GenerateFullAgreement ───────────────────────────────────────────
-//
-// Inside the p2.Add(...) block, spread the slice:
-//
-//   p2.Add(styledTextRows()...)
-//
-// Or inline the rows directly — both are equivalent.
